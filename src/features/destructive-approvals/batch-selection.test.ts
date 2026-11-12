@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { APPROVAL_BATCH_MAX_ITEMS, type DestructiveVersion } from '@/lib/contracts'
+import {
+  APPROVAL_BATCH_MAX_ITEMS,
+  BATCH_ITEM_STATUS_APPROVED,
+  DESTRUCTIVE_APPROVAL_ERROR_CODES as CODES,
+  type DestructiveVersion,
+} from '@/lib/contracts'
 import {
   batchBlockReason,
   batchKey,
+  classifyBatchResult,
   isRowSelected,
   isSelectionFull,
   isSelectionStale,
   rowBatchKey,
   rowNeedsApproval,
-  selectedBatchItems,
+  selectedBatchRows,
+  toBatchItem,
 } from './batch-selection'
 
 const ME = 7
@@ -70,7 +77,7 @@ describe('selección con el hash visto', () => {
     expect(isSelectionStale(new Map(), rowFixture())).toBe(false)
   })
 
-  it('manda en cada ítem el hash visto, en el orden de la lista, y deja fuera lo aprobado', () => {
+  it('devuelve las filas marcadas en el orden de la lista y deja fuera lo aprobado', () => {
     const first = rowFixture({ version: '0001', sql_hash: '1'.repeat(64) })
     const second = rowFixture({ version: '0002', direction: 'down', sql_hash: '2'.repeat(64) })
     const approved = rowFixture({ version: '0003', approval_status: 'approved' })
@@ -80,16 +87,22 @@ describe('selección con el hash visto', () => {
       [batchKey('0001', 'up'), first.sql_hash],
     ])
 
-    expect(selectedBatchItems([first, second, approved], selection)).toEqual([
-      { version: '0001', direction: 'up', expectedSqlHash: '1'.repeat(64) },
-      { version: '0002', direction: 'down', expectedSqlHash: '2'.repeat(64) },
-    ])
+    expect(selectedBatchRows([first, second, approved], selection)).toEqual([first, second])
   })
 
-  it('no manda una fila cuyo SQL cambió desde que se marcó', () => {
+  it('no devuelve una fila cuyo SQL cambió desde que se marcó', () => {
     const edited = rowFixture({ sql_hash: 'c'.repeat(64) })
     const selection = new Map([[rowBatchKey(edited), 'a'.repeat(64)]])
-    expect(selectedBatchItems([edited], selection)).toEqual([])
+    expect(selectedBatchRows([edited], selection)).toEqual([])
+  })
+
+  it('el ítem que viaja al backend lleva el hash de la fila', () => {
+    const row = rowFixture({ version: '0002', direction: 'down', sql_hash: '2'.repeat(64) })
+    expect(toBatchItem(row)).toEqual({
+      version: '0002',
+      direction: 'down',
+      expectedSqlHash: '2'.repeat(64),
+    })
   })
 })
 
@@ -100,6 +113,25 @@ describe('tope por lote', () => {
     )
     expect(isSelectionFull(full)).toBe(true)
     expect(isSelectionFull(new Map([['k', 'h']]))).toBe(false)
+  })
+})
+
+describe('classifyBatchResult', () => {
+  const failed = (code: string) => ({
+    status: 'failed',
+    error: { code, message: 'x', status_code: 409 },
+  })
+
+  it('distingue lo aprobado, lo que ya estaba aprobado y cada tipo de fallo', () => {
+    expect(classifyBatchResult({ status: BATCH_ITEM_STATUS_APPROVED })).toBe('approved')
+    expect(classifyBatchResult(failed(CODES.duplicate))).toBe('already_approved')
+    expect(classifyBatchResult(failed(CODES.batchItemFailed))).toBe('retryable')
+    expect(classifyBatchResult(failed(CODES.sqlChanged))).toBe('sql_changed')
+    expect(classifyBatchResult(failed(CODES.notFound))).toBe('failed')
+  })
+
+  it('un fallo sin error informado cuenta como fallo, no como aprobado', () => {
+    expect(classifyBatchResult({ status: 'failed' })).toBe('failed')
   })
 })
 

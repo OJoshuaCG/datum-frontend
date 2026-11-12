@@ -86,6 +86,16 @@ const SELF_APPROVAL_BY_RULE: Record<string, string> = {
     'Sos quien editó por última vez su SQL, así que no podés aprobarla: otra persona debe aprobarla (cuatro ojos).',
 }
 
+/**
+ * Pista corta bajo una fila del lote que la persona no puede aprobar. Usa las mismas reglas
+ * (`creator` / `last_editor`) que el rechazo del servidor, pero se muestra ANTES de enviar nada.
+ */
+export function batchBlockText(reason: 'creator' | 'last_editor'): string {
+  return reason === 'creator'
+    ? 'Creaste esta versión: tiene que aprobarla otra persona.'
+    : 'Editaste su SQL por última vez: tiene que aprobarla otra persona.'
+}
+
 const SELF_APPROVAL_FALLBACK =
   'No podés aprobar una versión que creaste o editaste: otra persona debe aprobarla (cuatro ojos).'
 

@@ -13,9 +13,7 @@ import {
 import { useCapabilityGuard, useSession } from '@/features/auth'
 import {
   APPROVAL_BATCH_MAX_ITEMS,
-  BATCH_ITEM_STATUS_APPROVED,
   CAPABILITIES,
-  DESTRUCTIVE_APPROVAL_ERROR_CODES,
   type BatchItemError,
   type BatchItemResult,
   type DestructiveApproval,
@@ -26,8 +24,7 @@ import { useDestructiveVersions } from '../hooks/use-destructive-approvals'
 import { DESTRUCTIVE_APPROVALS_ANCHOR_ID } from '../anchors'
 import {
   batchBlockReason,
-  batchBlockText,
-  batchKey,
+  classifyBatchResult,
   isRowSelected,
   isSelectionFull,
   isSelectionStale,
@@ -39,10 +36,9 @@ import {
 import {
   approvalStatusLabel,
   approvalStatusTone,
+  batchBlockText,
   batchItemMessage,
   directionLabel,
-  isInformationalBatchCode,
-  isRetryableBatchCode,
 } from '../messages'
 import { ApproveDestructiveBatchDialog } from './ApproveDestructiveBatchDialog'
 import { ApproveDestructiveDialog } from './ApproveDestructiveDialog'
@@ -145,26 +141,20 @@ export function DestructiveApprovalsPanel({
     setSelection((previous) => {
       const next = new Map(previous)
       for (const result of results) {
-        const key = batchKey(result.version, result.direction)
-        const keep =
-          result.status !== BATCH_ITEM_STATUS_APPROVED &&
-          !isInformationalBatchCode(result.error?.code) &&
-          (isRetryableBatchCode(result.error?.code) ||
-            result.error?.code === DESTRUCTIVE_APPROVAL_ERROR_CODES.sqlChanged)
-        if (!keep) next.delete(key)
+        const outcome = classifyBatchResult(result)
+        const keepMarked = outcome === 'retryable' || outcome === 'sql_changed'
+        if (!keepMarked) next.delete(rowBatchKey(result))
       }
       return next
     })
     setFailures((previous) => {
       const next = new Map(previous)
       for (const result of results) {
-        const key = batchKey(result.version, result.direction)
-        if (result.status !== BATCH_ITEM_STATUS_APPROVED && result.error) {
-          if (isInformationalBatchCode(result.error.code)) next.delete(key)
-          else next.set(key, result.error)
-        } else {
-          next.delete(key)
-        }
+        const key = rowBatchKey(result)
+        const outcome = classifyBatchResult(result)
+        const isProblem = outcome !== 'approved' && outcome !== 'already_approved'
+        if (isProblem && result.error) next.set(key, result.error)
+        else next.delete(key)
       }
       return next
     })

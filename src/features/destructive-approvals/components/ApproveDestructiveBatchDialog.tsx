@@ -5,20 +5,13 @@ import { toApiError } from '@/lib/api/errors'
 import {
   APPROVAL_REASON_MAX_LENGTH,
   APPROVAL_REASON_MIN_LENGTH,
-  BATCH_ITEM_STATUS_APPROVED,
   CAPABILITIES,
   type BatchItemResult,
   type DestructiveVersion,
 } from '@/lib/contracts'
-import { batchKey, rowBatchKey, toBatchItem } from '../batch-selection'
+import { classifyBatchResult, rowBatchKey, toBatchItem } from '../batch-selection'
 import { useApproveDestructiveBatch } from '../hooks/use-destructive-approvals'
-import {
-  batchItemMessage,
-  destructiveApprovalMessage,
-  directionLabel,
-  isInformationalBatchCode,
-  isRetryableBatchCode,
-} from '../messages'
+import { batchItemMessage, destructiveApprovalMessage, directionLabel } from '../messages'
 
 interface ApproveDestructiveBatchDialogProps {
   modelId: number
@@ -58,10 +51,6 @@ export function ApproveDestructiveBatchDialog({
   const [typed, setTyped] = useState('')
   // Resultado más reciente por fila (un reintento pisa el de la tanda anterior).
   const [results, setResults] = useState<ReadonlyMap<string, BatchItemResult>>(new Map())
-  // Filas que faltan por mandar: al inicio todas; tras un resultado, solo las reintentables.
-  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(
-    () => new Set(rows.map(rowBatchKey)),
-  )
 
   const approve = useApproveDestructiveBatch(modelId)
   const stepUp = useStepUp()
@@ -77,7 +66,15 @@ export function ApproveDestructiveBatchDialog({
     trimmedReason.length >= APPROVAL_REASON_MIN_LENGTH &&
     trimmedReason.length <= APPROVAL_REASON_MAX_LENGTH
   const typedMatches = typed === confirmWord
-  const rowsToSend = rows.filter((row) => pendingKeys.has(rowBatchKey(row)))
+  // Filas que faltan por mandar: al inicio todas; tras un resultado, solo las que fallaron por un
+  // error inesperado. El resto exige que alguien lea o decida algo antes (SQL cambiado, cuatro
+  // ojos, versión borrada…), así que reintentarlas tal cual no cambiaría nada.
+  const rowsToSend = hasResults
+    ? rows.filter((row) => {
+        const lastResult = results.get(rowBatchKey(row))
+        return lastResult !== undefined && classifyBatchResult(lastResult) === 'retryable'
+      })
+    : rows
   const canSubmit =
     guard.allowed &&
     reasonValid &&
@@ -90,12 +87,11 @@ export function ApproveDestructiveBatchDialog({
     ? (destructiveApprovalMessage(rejection.code, rejection.selfApprovalRule) ?? rejection.message)
     : null
 
-  const approvedCount = [...results.values()].filter(
-    (result) => result.status === BATCH_ITEM_STATUS_APPROVED,
-  ).length
-  const failedCount = [...results.values()].filter(
-    (result) =>
-      result.status !== BATCH_ITEM_STATUS_APPROVED && !isInformationalBatchCode(result.error?.code),
+  const outcomes = [...results.values()].map(classifyBatchResult)
+  const approvedCount = outcomes.filter((outcome) => outcome === 'approved').length
+  // «Ya estaba aprobada» no cuenta como problema: el resultado buscado ya existe.
+  const failedCount = outcomes.filter(
+    (outcome) => outcome !== 'approved' && outcome !== 'already_approved',
   ).length
 
   const scopeText =
@@ -113,23 +109,10 @@ export function ApproveDestructiveBatchDialog({
             setResults((previous) => {
               const next = new Map(previous)
               for (const result of batch.results) {
-                next.set(batchKey(result.version, result.direction), result)
+                next.set(rowBatchKey(result), result)
               }
               return next
             })
-            // Solo se reintenta lo que falló por un error inesperado: el resto exige que alguien
-            // lea o decida algo antes (SQL cambiado, cuatro ojos, versión borrada…).
-            setPendingKeys(
-              new Set(
-                batch.results
-                  .filter(
-                    (result) =>
-                      result.status !== BATCH_ITEM_STATUS_APPROVED &&
-                      isRetryableBatchCode(result.error?.code),
-                  )
-                  .map((result) => batchKey(result.version, result.direction)),
-              ),
-            )
             onResult(batch.results)
           },
         },
@@ -243,8 +226,9 @@ export function ApproveDestructiveBatchDialog({
 }
 
 function BatchRow({ row, result }: { row: DestructiveVersion; result?: BatchItemResult }) {
-  const failed = result !== undefined && result.status !== BATCH_ITEM_STATUS_APPROVED
-  const informational = failed && isInformationalBatchCode(result.error?.code)
+  const outcome = result === undefined ? undefined : classifyBatchResult(result)
+  const informational = outcome === 'already_approved'
+  const failed = outcome !== undefined && outcome !== 'approved'
 
   return (
     <li className="flex flex-col gap-1 p-2.5 text-sm">
@@ -260,7 +244,7 @@ function BatchRow({ row, result }: { row: DestructiveVersion; result?: BatchItem
           <Badge tone="error">No aprobada</Badge>
         )}
       </div>
-      {failed && (
+      {result !== undefined && failed && (
         <p className={informational ? 'text-xs text-muted-foreground' : 'text-xs text-error'}>
           {batchItemMessage(result.error?.code, result.error?.rule) ??
             result.error?.message ??

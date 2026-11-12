@@ -1,9 +1,13 @@
 import {
   APPROVAL_BATCH_MAX_ITEMS,
+  BATCH_ITEM_STATUS_APPROVED,
+  DESTRUCTIVE_APPROVAL_ERROR_CODES,
   type ApproveDestructiveBatchItemInput,
+  type BatchItemResult,
   type DestructiveDirection,
   type DestructiveVersion,
 } from '@/lib/contracts'
+import { isInformationalBatchCode, isRetryableBatchCode } from './messages'
 
 /**
  * Lógica pura de la selección múltiple para aprobar en lote. Vive aparte de los componentes para
@@ -23,8 +27,9 @@ export function batchKey(version: string, direction: string): string {
   return `${version}:${direction}`
 }
 
-export function rowBatchKey(row: Pick<DestructiveVersion, 'version' | 'direction'>): string {
-  return batchKey(row.version, row.direction)
+/** Sirve tanto para una fila de la lista como para el resultado de un ítem del lote. */
+export function rowBatchKey(item: Pick<DestructiveVersion, 'version' | 'direction'>): string {
+  return batchKey(item.version, item.direction)
 }
 
 export type BatchBlockReason = 'creator' | 'last_editor'
@@ -42,12 +47,6 @@ export function batchBlockReason(
   if (row.author.admin_id === currentAdminId) return 'creator'
   if (row.last_sql_editor.admin_id === currentAdminId) return 'last_editor'
   return null
-}
-
-export function batchBlockText(reason: BatchBlockReason): string {
-  return reason === 'creator'
-    ? 'Creaste esta versión: tiene que aprobarla otra persona.'
-    : 'Editaste su SQL por última vez: tiene que aprobarla otra persona.'
 }
 
 /** Una fila ya aprobada para este alcance no tiene nada que aprobar. */
@@ -94,10 +93,24 @@ export function toBatchItem(row: DestructiveVersion): ApproveDestructiveBatchIte
   }
 }
 
-/** Los ítems del lote, en el orden de la lista, con el hash que se vio al marcar. */
-export function selectedBatchItems(
-  rows: readonly DestructiveVersion[],
-  selection: BatchSelection,
-): ApproveDestructiveBatchItemInput[] {
-  return selectedBatchRows(rows, selection).map(toBatchItem)
+/**
+ * Qué pasó con un ítem del lote. Es la única regla de «qué hacer con cada resultado»: la usan el
+ * diálogo (contadores, etiqueta, qué reintentar) y la lista (qué fila queda marcada).
+ *
+ * - `already_approved`: ya había una aprobación vigente para ese SQL; no es un fallo.
+ * - `retryable`: error inesperado del servidor; reintentar tal cual puede salir bien.
+ * - `sql_changed`: el SQL cambió desde que se marcó; hay que leer el nuevo antes de volver a marcar.
+ * - `failed`: cualquier otro rechazo (cuatro ojos, versión borrada…); exige que alguien decida algo.
+ */
+export type BatchOutcome = 'approved' | 'already_approved' | 'retryable' | 'sql_changed' | 'failed'
+
+export function classifyBatchResult(
+  result: Pick<BatchItemResult, 'status' | 'error'>,
+): BatchOutcome {
+  if (result.status === BATCH_ITEM_STATUS_APPROVED) return 'approved'
+  const code = result.error?.code
+  if (isInformationalBatchCode(code)) return 'already_approved'
+  if (isRetryableBatchCode(code)) return 'retryable'
+  if (code === DESTRUCTIVE_APPROVAL_ERROR_CODES.sqlChanged) return 'sql_changed'
+  return 'failed'
 }
