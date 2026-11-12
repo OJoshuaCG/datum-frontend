@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1168 1200" width="1168" height="1200" role="img" aria-labelledby="t">
+  <title id="t">Datum logo mark (dark background)</title>
+  <!-- Geometry: one axis, one slope (1:2 = 26.565 deg) for every diagonal, one stroke width for all arms.
+       The right half is the left half mirrored around x=576, so both sides are identical by construction. -->
+  <defs>
+    <linearGradient id="axis-top" gradientUnits="userSpaceOnUse" x1="576" y1="86" x2="576" y2="551.8">
+      <stop offset="0" stop-color="#4448D4"/>
+      <stop offset="0.5" stop-color="#3239D3"/>
+      <stop offset="1" stop-color="#3A3ED2"/>
+    </linearGradient>
+    <linearGradient id="axis-bottom" gradientUnits="userSpaceOnUse" x1="576" y1="551.8" x2="576" y2="1114.03">
+      <stop offset="0" stop-color="#2E8EB2"/>
+      <stop offset="0.12" stop-color="#2A9DBB"/>
+      <stop offset="0.35" stop-color="#21A0A9"/>
+      <stop offset="0.7" stop-color="#16A5A5"/>
+      <stop offset="1" stop-color="#0F9796"/>
+    </linearGradient>
+    <linearGradient id="chevron-upper" gradientUnits="userSpaceOnUse" x1="477.16" y1="215.49" x2="76.62" y2="415.76">
+      <stop offset="0" stop-color="#3A40D2"/>
+      <stop offset="0.4" stop-color="#4951DD"/>
+      <stop offset="0.7" stop-color="#5970E9"/>
+      <stop offset="1" stop-color="#556DE5"/>
+    </linearGradient>
+    <linearGradient id="chevron-lower" gradientUnits="userSpaceOnUse" x1="76.62" y1="415.76" x2="398.98" y2="576.94">
+      <stop offset="0" stop-color="#556DE5"/>
+      <stop offset="0.5" stop-color="#5B78EA"/>
+      <stop offset="1" stop-color="#5D7BEB"/>
+    </linearGradient>
+    <linearGradient id="teal-upper" gradientUnits="userSpaceOnUse" x1="103.31" y1="631.01" x2="477.16" y2="817.94">
+      <stop offset="0" stop-color="#14A0A0"/>
+      <stop offset="0.5" stop-color="#15A5A2"/>
+      <stop offset="0.75" stop-color="#16A6A1"/>
+      <stop offset="1" stop-color="#17B8AF"/>
+    </linearGradient>
+    <linearGradient id="teal-lower" gradientUnits="userSpaceOnUse" x1="103.31" y1="808.38" x2="477.16" y2="995.3">
+      <stop offset="0" stop-color="#14AEA7"/>
+      <stop offset="0.5" stop-color="#13A9A3"/>
+      <stop offset="0.75" stop-color="#15A8A3"/>
+      <stop offset="1" stop-color="#17B6AD"/>
+    </linearGradient>
+    <radialGradient id="node" gradientUnits="userSpaceOnUse" cx="546" cy="521.8" r="156.84">
+      <stop offset="0" stop-color="#B5DBF8"/>
+      <stop offset="1" stop-color="#A2D6FC"/>
+    </radialGradient>
+
+    <g id="half" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="71.29">
+      <path d="M477.16 215.49 L76.62 415.76" stroke="url(#chevron-upper)"/>
+      <path d="M76.62 415.76 L398.98 576.94" stroke="url(#chevron-lower)"/>
+      <path d="M103.31 631.01 L477.16 817.94" stroke="url(#teal-upper)"/>
+      <path d="M103.31 808.38 L477.16 995.3" stroke="url(#teal-lower)"/>
+      <circle cx="103.31" cy="631.01" r="49.9" fill="url(#teal-upper)" stroke="none"/>
+      <circle cx="103.31" cy="808.38" r="49.9" fill="url(#teal-lower)" stroke="none"/>
+    </g>
+  </defs>
+
+  <path d="M576 86 V551.8" fill="none" stroke="url(#axis-top)" stroke-width="63.37" stroke-linecap="round"/>
+  <path d="M576 551.8 V1114.03" fill="none" stroke="url(#axis-bottom)" stroke-width="63.37" stroke-linecap="round"/>
+  <use href="#half"/>
+  <use href="#half" transform="translate(1152 0) scale(-1 1)"/>
+  <circle cx="576" cy="551.8" r="104.56" fill="url(#node)"/>
+</svg>

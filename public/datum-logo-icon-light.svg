@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1312 1352" width="1312" height="1352" role="img" aria-labelledby="t">
+  <title id="t">Datum logo mark (light background)</title>
+  <!-- One axis, one slope (1:2 = 26.565 deg) for every diagonal, one stroke width for all arms.
+       The right half is the left half mirrored around x=656.48, so both sides are identical by construction. -->
+  <defs>
+    <linearGradient id="axis-bottom" gradientUnits="userSpaceOnUse" x1="656.48" y1="621" x2="656.48" y2="1274">
+      <stop offset="0" stop-color="#2A73B8"/>
+      <stop offset="0.3" stop-color="#208BA8"/>
+      <stop offset="0.65" stop-color="#1B909E"/>
+      <stop offset="1" stop-color="#1A9D9F"/>
+    </linearGradient>
+    <g id="half" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="82.8">
+      <path d="M541.68 230.4 L76.48 463 L450.88 650.2" stroke="#4142E0"/>
+      <path d="M107.48 713 L541.68 930.1" stroke="#1FA9A3"/>
+      <path d="M107.48 919 L541.68 1136.1" stroke="#1FA9A3"/>
+      <circle cx="107.48" cy="713" r="57.96" fill="#1FA9A3" stroke="none"/>
+      <circle cx="107.48" cy="919" r="57.96" fill="#1FA9A3" stroke="none"/>
+    </g>
+  </defs>
+  <path d="M656.48 80 V621" fill="none" stroke="#4142E0" stroke-width="73.6" stroke-linecap="round"/>
+  <path d="M656.48 621 V1274" fill="none" stroke="url(#axis-bottom)" stroke-width="73.6" stroke-linecap="round"/>
+  <use href="#half"/>
+  <use href="#half" transform="translate(1312.96 0) scale(-1 1)"/>
+  <circle cx="656.48" cy="621" r="121.44" fill="#4142E0"/>
+</svg>
