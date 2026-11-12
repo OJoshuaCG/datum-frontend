@@ -1,9 +1,12 @@
 import { fetchList, mutateData } from '@/lib/api/client'
 import {
+  destructiveApprovalBatchSchema,
   destructiveApprovalSchema,
   destructiveVersionSchema,
+  type ApproveDestructiveBatchInput,
   type ApproveDestructiveInput,
   type DestructiveApproval,
+  type DestructiveApprovalBatch,
   type DestructiveVersion,
 } from '@/lib/contracts'
 
@@ -63,6 +66,46 @@ export function approveDestructiveForDatabase(
     `/managed-databases/${managedDatabaseId}/migrations/${encodeURIComponent(version)}/destructive-approvals`,
     destructiveApprovalSchema,
     { body: approvalBody(input) },
+  )
+}
+
+function batchBody(input: ApproveDestructiveBatchInput) {
+  return {
+    reason: input.reason.trim(),
+    items: input.items.map((item) => ({
+      version: item.version,
+      direction: item.direction,
+      expected_sql_hash: item.expectedSqlHash,
+    })),
+  }
+}
+
+/**
+ * `POST /database-models/{id}/destructive-approvals/batch` — aprueba varias versiones con alcance
+ * blueprint. Responde `200` con resultado PARCIAL por ítem: hay que mirar `failed_count`.
+ */
+export function approveDestructiveBatchForBlueprint(
+  modelId: number,
+  input: ApproveDestructiveBatchInput,
+): Promise<DestructiveApprovalBatch> {
+  return mutateData(
+    'POST',
+    `/database-models/${modelId}/destructive-approvals/batch`,
+    destructiveApprovalBatchSchema,
+    { body: batchBody(input) },
+  )
+}
+
+/** `POST /managed-databases/{id}/destructive-approvals/batch` — lo mismo, alcance SOLO esa base. */
+export function approveDestructiveBatchForDatabase(
+  managedDatabaseId: number,
+  input: ApproveDestructiveBatchInput,
+): Promise<DestructiveApprovalBatch> {
+  return mutateData(
+    'POST',
+    `/managed-databases/${managedDatabaseId}/destructive-approvals/batch`,
+    destructiveApprovalBatchSchema,
+    { body: batchBody(input) },
   )
 }
 

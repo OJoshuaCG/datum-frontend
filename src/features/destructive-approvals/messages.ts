@@ -37,6 +37,46 @@ const MESSAGES: Record<string, string> = {
     'El lote alcanza más de un entorno protegido. Filtralo por un solo entorno y volvé a planificar.',
   [CODES.executorForbidden]:
     'No tenés permiso para ejecutar migraciones destructivas en esta base. Pedíselo a un owner.',
+  [CODES.batchItemFailed]:
+    'Falló por un error inesperado, sin aprobarse. Podés reintentar solo esta versión.',
+}
+
+/**
+ * Copy de un ítem fallido DENTRO de un lote. Se decide por `code`, nunca por el `message` del
+ * backend. Reusa los textos de la aprobación individual salvo los que mencionan «la pantalla» o «la
+ * versión que revisabas», que en un lote hablan de una fila entre varias.
+ */
+const BATCH_ITEM_MESSAGES: Record<string, string> = {
+  [CODES.sqlChanged]:
+    'El SQL cambió desde que lo revisaste. Recargá la lista, leé el SQL nuevo y marcala de nuevo.',
+  [CODES.duplicate]:
+    'Ya tenía una aprobación vigente para este mismo SQL: no hacía falta aprobarla.',
+  [CODES.notFound]: 'La versión ya no existe. Recargá la lista.',
+}
+
+/** Mensaje de un ítem fallido de un lote, o `null` si el código no es de este flujo. */
+export function batchItemMessage(
+  code: string | null | undefined,
+  selfApprovalRule?: string | null,
+): string | null {
+  if (code && BATCH_ITEM_MESSAGES[code]) return BATCH_ITEM_MESSAGES[code]
+  return destructiveApprovalMessage(code, selfApprovalRule)
+}
+
+/**
+ * `duplicate` no es un fallo real: ya había una aprobación vigente para ese SQL. Se muestra como
+ * informativo y no cuenta como algo que reintentar.
+ */
+export function isInformationalBatchCode(code: string | null | undefined): boolean {
+  return code === CODES.duplicate
+}
+
+/**
+ * Códigos de un ítem fallido que pueden salir bien si se vuelve a intentar sin que nadie cambie
+ * nada: solo el error inesperado. `sql_changed` exige releer el SQL, así que no entra acá.
+ */
+export function isRetryableBatchCode(code: string | null | undefined): boolean {
+  return code === CODES.batchItemFailed
 }
 
 const SELF_APPROVAL_BY_RULE: Record<string, string> = {

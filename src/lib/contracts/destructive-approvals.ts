@@ -42,6 +42,8 @@ export const DESTRUCTIVE_APPROVAL_ERROR_CODES = {
   confirmPhraseMismatch: 'destructive_approval.confirm_phrase_mismatch',
   batchMultiEnvironment: 'destructive_approval.batch_multi_environment',
   executorForbidden: 'destructive_approval.executor_forbidden',
+  /** Solo dentro de un ítem de un lote: error inesperado de ESE ítem, reintentable solo. */
+  batchItemFailed: 'destructive_approval.batch_item_failed',
 } as const
 export type DestructiveApprovalErrorCode =
   (typeof DESTRUCTIVE_APPROVAL_ERROR_CODES)[keyof typeof DESTRUCTIVE_APPROVAL_ERROR_CODES]
@@ -165,3 +167,53 @@ export interface ApproveDestructiveInput {
 }
 
 export const destructiveVersionListSchema = z.array(destructiveVersionSchema)
+
+/** Tope de ítems por lote (`APPROVAL_BATCH_MAX_ITEMS` del backend): más de esto responde 422. */
+export const APPROVAL_BATCH_MAX_ITEMS = 100
+
+/** Un ítem del lote: la versión, su dirección y el hash del SQL que la persona vio al listar. */
+export interface ApproveDestructiveBatchItemInput {
+  version: string
+  direction: DestructiveDirection
+  expectedSqlHash: string
+}
+
+/** Body de `POST .../destructive-approvals/batch`: un solo motivo para todo el lote. */
+export interface ApproveDestructiveBatchInput {
+  reason: string
+  items: ApproveDestructiveBatchItemInput[]
+}
+
+/** `DestructiveApprovalBatchItemError`: el mismo `code` que devuelve la aprobación individual. */
+export const batchItemErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  status_code: z.number().int(),
+  /** Solo con `access.self_approval_forbidden`: `creator` o `last_editor`. */
+  rule: z.string().nullish(),
+})
+export type BatchItemError = z.infer<typeof batchItemErrorSchema>
+
+/** Estados de un ítem. Se lee como `string`: ver la nota de vocabularios cerrados al inicio. */
+export const BATCH_ITEM_STATUS_APPROVED = 'approved'
+
+export const batchItemResultSchema = z.object({
+  version: z.string(),
+  direction: z.string(),
+  status: z.string(),
+  approval: destructiveApprovalSchema.nullish(),
+  error: batchItemErrorSchema.nullish(),
+})
+export type BatchItemResult = z.infer<typeof batchItemResultSchema>
+
+/**
+ * `DestructiveApprovalBatchOut`. El resultado es PARCIAL: llega con `200` aunque algún ítem falle,
+ * y los aprobados quedan aprobados. `results` respeta el orden en que se mandaron los ítems.
+ */
+export const destructiveApprovalBatchSchema = z.object({
+  total: z.number().int(),
+  approved_count: z.number().int(),
+  failed_count: z.number().int(),
+  results: z.array(batchItemResultSchema),
+})
+export type DestructiveApprovalBatch = z.infer<typeof destructiveApprovalBatchSchema>

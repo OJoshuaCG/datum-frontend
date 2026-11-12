@@ -3,13 +3,18 @@ import { notifyMutationError } from '@/features/auth'
 import { toApiError } from '@/lib/api/errors'
 import { queryKeys } from '@/lib/api/query-keys'
 import {
+  ACCESS_FORBIDDEN_CODE,
   DESTRUCTIVE_APPROVAL_ERROR_CODES as CODES,
   SELF_APPROVAL_FORBIDDEN_CODE,
+  type ApproveDestructiveBatchInput,
   type ApproveDestructiveInput,
   type DestructiveApproval,
+  type DestructiveApprovalBatch,
 } from '@/lib/contracts'
 import { useToast } from '@/lib/toast/use-toast'
 import {
+  approveDestructiveBatchForBlueprint,
+  approveDestructiveBatchForDatabase,
   approveDestructiveForBlueprint,
   approveDestructiveForDatabase,
   listDestructiveVersions,
@@ -93,6 +98,44 @@ export function useApproveDestructive(modelId: number) {
         return
       }
       notifyMutationError(toast, error, 'No se pudo aprobar la migración', apiError.message)
+    },
+  })
+}
+
+/** Rechazos de la petición entera que el diálogo explica solo, sin toast. */
+const BATCH_REQUEST_LEVEL_CODES: ReadonlySet<string> = new Set([
+  CODES.machineActor,
+  ACCESS_FORBIDDEN_CODE,
+])
+
+export interface ApproveBatchVariables {
+  input: ApproveDestructiveBatchInput
+  /** Sin base = alcance blueprint; con base = alcance base. */
+  managedDatabaseId?: number
+}
+
+/**
+ * Aprueba varias versiones en UNA petición. El resultado es parcial: un `200` no dice que todo
+ * salió bien, así que el éxito NO se anuncia con un toast genérico. Quien llama pinta el resultado
+ * por fila. La lista se invalida siempre: aunque algo haya fallado, lo aprobado cambió de estado.
+ *
+ * Los errores de la petición entera (sin `results`) los muestra el diálogo junto al formulario. Solo
+ * lo que el diálogo no sabe explicar (red, sesión) sale como toast. El 403 de step-up lo atiende
+ * el cliente HTTP (contraseña y un reenvío del mismo lote), sin pedir de nuevo el motivo.
+ */
+export function useApproveDestructiveBatch(modelId: number) {
+  const toast = useToast()
+  const invalidate = useInvalidateApprovals(modelId)
+  return useMutation<DestructiveApprovalBatch, unknown, ApproveBatchVariables>({
+    mutationFn: ({ input, managedDatabaseId }) =>
+      managedDatabaseId === undefined
+        ? approveDestructiveBatchForBlueprint(modelId, input)
+        : approveDestructiveBatchForDatabase(managedDatabaseId, input),
+    onSuccess: () => invalidate(),
+    onError: (error) => {
+      const apiError = toApiError(error)
+      if (apiError.code !== undefined && BATCH_REQUEST_LEVEL_CODES.has(apiError.code)) return
+      notifyMutationError(toast, error, 'No se pudo aprobar el lote', apiError.message)
     },
   })
 }
