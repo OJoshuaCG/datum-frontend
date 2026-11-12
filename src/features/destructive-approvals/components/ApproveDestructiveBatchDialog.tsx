@@ -156,8 +156,8 @@ export function ApproveDestructiveBatchDialog({
             <p>
               Cada versión se aprueba por separado y con las mismas reglas que una aprobación
               individual: si alguna falla, las demás igual quedan aprobadas. Quien creó una versión
-              o editó su SQL por última vez no puede aprobarla (cuatro ojos). Cada aprobación vale
-              solo para el SQL que viste al marcarla.
+              o editó su SQL por última vez no puede aprobarla (cuatro ojos). Cada aprobación queda
+              atada al SQL actual de la versión: si se edita después, deja de valer.
             </p>
           </Callout>
         )}
