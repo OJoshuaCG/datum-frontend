@@ -21,24 +21,13 @@ export function isBackwardPromotion(
 }
 
 /**
- * La versión CALCULADA (mínimo de las bases vivas de un entorno) de un canal, en la misma forma
- * sea cual sea el modo.
+ * La versión CALCULADA (mínimo de las bases de un entorno) de un canal, tal como la trae el dato.
  *
- * En un canal `derived` ES la resolución; en uno `manual` o `latest` con entorno viene aparte en
- * `derived_reference` y se muestra junto al puntero como REFERENCIA, nunca en su lugar. Sin
- * entorno no hay nada que calcular y devuelve `null`.
+ * La resolución de cualquier modo es el puntero del canal; la referencia viene aparte en
+ * `derived_reference` (caché del inventario) para todo canal con entorno enlazado, y se muestra
+ * junto al puntero, nunca en su lugar ni decide nada. Sin entorno no hay nada que calcular y
+ * devuelve `null`.
  */
 export function derivedReferenceOf(resolution: ChannelResolutionOut): ChannelReference | null {
-  if (resolution.resolution_mode === 'derived') {
-    return {
-      environment_slug: resolution.environment_slug,
-      resolved: resolution.resolved,
-      code: resolution.code,
-      version: resolution.version,
-      model_migration_id: resolution.model_migration_id,
-      source: resolution.source,
-      databases: resolution.databases,
-    }
-  }
   return resolution.derived_reference ?? null
 }

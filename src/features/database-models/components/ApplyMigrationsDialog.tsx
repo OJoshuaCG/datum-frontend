@@ -321,7 +321,7 @@ export function ApplyMigrationsDialog({
             value={limitChannelSlug}
             onChange={setLimitChannelSlug}
             enabled={open}
-            hint="La versión se resuelve en vivo al ejecutar. Si el canal no tiene versión, no se aplica nada: no cae a «la última». Las bases por encima de ella no retroceden."
+            hint="La versión se resuelve desde el puntero del canal al ejecutar. Si el canal no tiene versión, no se aplica nada: no cae a «la última». Las bases por encima de ella no retroceden."
           />
         )}
 

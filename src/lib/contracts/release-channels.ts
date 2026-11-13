@@ -148,7 +148,7 @@ export const channelDatabaseStateSchema = z.object({
 
 /**
  * `ChannelReferenceOut`: el mínimo de las bases VIVAS de un entorno, mostrado junto al puntero de
- * un canal manual. Es una REFERENCIA para la persona: en un canal manual no decide nada.
+ * cualquier canal con entorno enlazado. Es una REFERENCIA para la persona: no decide nada.
  *
  * Los nulos de `data` viajan como `null` explícito (solo el envelope los omite), de ahí `nullish`.
  */
@@ -158,7 +158,7 @@ export const channelReferenceSchema = z.object({
   code: z.string().nullish(),
   version: z.string().nullish(),
   model_migration_id: z.number().int().nullish(),
-  /** `live` (lectura en vivo) o `inventory_cache` (listado). Un valor nuevo se muestra crudo. */
+  /** `inventory_cache` (listado) o `live` (lectura en vivo pedida). Un valor nuevo se muestra crudo. */
   source: z.string().nullish(),
   databases: z.array(channelDatabaseStateSchema).optional().default([]),
 })
@@ -181,7 +181,7 @@ export const channelResolutionOutSchema = z.object({
   code: z.string().nullish(),
   version: z.string().nullish(),
   model_migration_id: z.number().int().nullish(),
-  /** `pointer` | `tip` | `live` | `inventory_cache`. */
+  /** Siempre `pointer` en la resolución estricta; `tip`, `live` e `inventory_cache` quedan por compatibilidad. */
   source: z.string().nullish(),
   databases: z.array(channelDatabaseStateSchema).optional().default([]),
   derived_reference: channelReferenceSchema.nullish(),

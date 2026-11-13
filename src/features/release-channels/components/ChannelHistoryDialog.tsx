@@ -3,7 +3,7 @@ import { Badge, EmptyState, ErrorState, Modal, Pagination, Spinner } from '@/com
 import { formatDateTime } from '@/lib/utils/format'
 import { CHANNEL_EVENT_TYPES, PAGINATION } from '@/lib/contracts'
 import { useBlueprintChannelHistory } from '../hooks/use-blueprint-channels'
-import { channelEventTypeLabel } from '../messages'
+import { channelEventTypeLabel, isAutomaticChannelEvent } from '../messages'
 
 interface ChannelHistoryDialogProps {
   modelId: number
@@ -15,8 +15,9 @@ interface ChannelHistoryDialogProps {
 /**
  * Bitácora del puntero de un canal, del evento más reciente al más antiguo.
  *
- * Incluye los movimientos AUTOMÁTICOS (`version_deleted`) que provoca borrar la versión apuntada:
- * sin ellos el historial no explicaría por qué el canal se movió sin que nadie lo promoviera.
+ * Incluye los movimientos AUTOMÁTICOS: `version_deleted` (borrar la versión apuntada) y los
+ * promote/demote con actor `system` de los canales latest/derived. Sin ellos el historial no
+ * explicaría por qué el canal se movió sin que nadie lo promoviera.
  * Las versiones de cada evento son una foto de su etiqueta en ese momento; un renumerado posterior
  * no las reescribe, así que pueden no coincidir con la numeración de hoy.
  */
@@ -56,14 +57,17 @@ export function ChannelHistoryDialog({
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       tone={
-                        event.event_type === CHANNEL_EVENT_TYPES.demote
-                          ? 'warning'
-                          : event.event_type === CHANNEL_EVENT_TYPES.versionDeleted
-                            ? 'neutral'
+                        event.event_type === CHANNEL_EVENT_TYPES.versionDeleted
+                          ? 'neutral'
+                          : event.event_type === CHANNEL_EVENT_TYPES.demote
+                            ? // Un retroceso automático es el funcionamiento normal del canal, no una alarma.
+                              event.actor_type === 'system'
+                              ? 'neutral'
+                              : 'warning'
                             : 'info'
                       }
                     >
-                      {channelEventTypeLabel(event.event_type)}
+                      {channelEventTypeLabel(event.event_type, event.actor_type)}
                     </Badge>
                     <span className="flex items-center gap-1.5 text-xs">
                       <code className="rounded bg-surface-muted px-1.5 py-0.5">
@@ -81,7 +85,9 @@ export function ChannelHistoryDialog({
                   <p className="text-xs text-muted-foreground">
                     {event.event_type === CHANNEL_EVENT_TYPES.versionDeleted
                       ? 'Movimiento automático al borrar la versión apuntada.'
-                      : `Por ${event.actor_username}.`}
+                      : isAutomaticChannelEvent(event.event_type, event.actor_type)
+                        ? 'Automático (sistema).'
+                        : `Por ${event.actor_username}.`}
                   </p>
                   {event.note && <p className="text-xs text-foreground">{event.note}</p>}
                 </li>
@@ -105,7 +111,7 @@ export function ChannelHistoryDialog({
         ) : (
           <EmptyState
             title="Este canal todavía no se movió"
-            description="Cuando alguien lo promueva, o se borre la versión a la que apunta, el movimiento queda acá."
+            description="Cuando alguien lo promueva, el canal se mueva solo o se borre la versión a la que apunta, el movimiento queda acá."
           />
         )}
       </div>

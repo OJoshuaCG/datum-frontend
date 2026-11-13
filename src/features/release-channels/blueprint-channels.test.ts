@@ -36,9 +36,17 @@ describe('isBackwardPromotion', () => {
 })
 
 describe('derivedReferenceOf', () => {
-  it('en un canal derivado la propia resolución es la referencia', () => {
-    const derived = resolution({ resolution_mode: 'derived', version: '0004' })
-    expect(derivedReferenceOf(derived)?.version).toBe('0004')
+  it('en un canal derivado la referencia es la que trae el dato, no la resolución', () => {
+    const reference = { resolved: true, version: '0002', databases: [] }
+    const derived = resolution({
+      resolution_mode: 'derived',
+      version: '0004',
+      derived_reference: reference,
+    })
+    expect(derivedReferenceOf(derived)?.version).toBe('0002')
+    expect(
+      derivedReferenceOf(resolution({ resolution_mode: 'derived', version: '0004' })),
+    ).toBeNull()
   })
 
   it('en un canal manual usa `derived_reference` y sin ella devuelve null', () => {

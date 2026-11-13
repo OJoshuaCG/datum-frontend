@@ -211,8 +211,8 @@ export interface ApplyAllOptions {
    */
   targetVersion?: string
   /**
-   * Slug de un canal: el tope es la versión que el canal sirve hoy para el blueprint, resuelta en
-   * vivo. Si no resuelve responde 409 `release_channel.*` y no se aplica nada: NO cae a «hasta la
+   * Slug de un canal: el tope es la versión que el canal sirve hoy para el blueprint, resuelta
+   * desde el puntero del canal. Si no resuelve responde 409 `release_channel.*` y no se aplica nada: NO cae a «hasta la
    * última». Excluyente con `targetVersion`.
    */
   channel?: string

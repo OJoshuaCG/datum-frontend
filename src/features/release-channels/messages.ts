@@ -7,7 +7,11 @@
  * Pydantic, y el formulario ya lo previene al ofrecer solo los tres modos.
  */
 
-import { RELEASE_CHANNEL_ERROR_CODES, type ReleaseChannelMode } from '@/lib/contracts'
+import {
+  CHANNEL_EVENT_TYPES,
+  RELEASE_CHANNEL_ERROR_CODES,
+  type ReleaseChannelMode,
+} from '@/lib/contracts'
 
 const CODES = RELEASE_CHANNEL_ERROR_CODES
 
@@ -25,7 +29,7 @@ const MESSAGES: Record<string, string> = {
   [CODES.promoteBackwardRequiresConfirm]:
     'Promover una versión anterior a la actual exige confirmarlo repitiendo el identificador del canal.',
   [CODES.noReleasedVersion]:
-    'El canal todavía no tiene ninguna versión liberada para este blueprint.',
+    'El canal todavía no tiene ninguna versión revisada para este blueprint.',
   [CODES.derivedUnreadable]:
     'No se pudo leer la versión de alguna base del entorno, así que el canal derivado no se resolvió.',
   [CODES.derivedNoScope]:
@@ -51,8 +55,8 @@ const MODE_LABELS: Record<ReleaseChannelMode, string> = {
 const MODE_DESCRIPTIONS: Record<ReleaseChannelMode, string> = {
   manual: 'Una persona mueve el puntero de cada blueprint a una versión revisada.',
   derived:
-    'La versión más baja que tienen hoy las bases del entorno enlazado. Se lee en vivo y falla cerrado.',
-  latest: 'La última versión del blueprint, incluso si todavía no fue revisada.',
+    'El puntero sigue la versión mínima del entorno según el inventario, y solo sobre versiones revisadas.',
+  latest: 'La última versión revisada; el puntero se mueve solo.',
 }
 
 export function releaseChannelModeLabel(mode: string): string {
@@ -75,7 +79,7 @@ export const RELEASE_CHANNELS_WRITE_UNBLOCK =
  * nuevo) se muestra crudo en vez de esconderse.
  */
 const SOURCE_LABELS: Record<string, string> = {
-  pointer: 'Puntero manual',
+  pointer: 'Puntero del canal',
   tip: 'Última versión del blueprint',
   live: 'Lectura en vivo',
   inventory_cache: 'Caché del inventario',
@@ -105,6 +109,24 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   version_deleted: 'Versión borrada (movimiento automático)',
 }
 
-export function channelEventTypeLabel(eventType: string): string {
-  return EVENT_TYPE_LABELS[eventType] ?? eventType
+/** Valor de `actor_type` de los movimientos que hace el propio gateway (punteros latest/derived). */
+const SYSTEM_ACTOR_TYPE = 'system'
+
+/**
+ * ¿El movimiento lo hizo el gateway y no una persona? Un `version_deleted` siempre es automático;
+ * un promote/demote lo es cuando el actor es el sistema (puntero latest/derived que se mueve solo).
+ */
+export function isAutomaticChannelEvent(
+  eventType: string,
+  actorType: string | null | undefined,
+): boolean {
+  return eventType === CHANNEL_EVENT_TYPES.versionDeleted || actorType === SYSTEM_ACTOR_TYPE
+}
+
+export function channelEventTypeLabel(eventType: string, actorType?: string | null): string {
+  const label = EVENT_TYPE_LABELS[eventType] ?? eventType
+  const isMovedBySystem =
+    actorType === SYSTEM_ACTOR_TYPE &&
+    (eventType === CHANNEL_EVENT_TYPES.promote || eventType === CHANNEL_EVENT_TYPES.demote)
+  return isMovedBySystem ? `${label} (automático)` : label
 }

@@ -37,12 +37,12 @@ interface BlueprintChannelsPanelProps {
  *
  * Tres cosas distintas que no se mezclan:
  *
- * - La **versión servida** es la que consumen las integraciones: el puntero manual, la última
- *   versión (`latest`) o el mínimo vivo del entorno (`derived`).
- * - La **referencia** (mínimo de las bases vivas del entorno enlazado) se muestra AL LADO de un
- *   canal manual, pero no lo decide: sirve para ver si el puntero va por delante o por detrás de lo
- *   que de verdad corre. Viene de la caché del inventario y se rotula así; «Leer en vivo» la
- *   recalcula conectando a cada base.
+ * - La **versión servida** es la que consumen las integraciones y es SIEMPRE el puntero del canal,
+ *   sea cual sea el modo: en `manual` lo mueve una persona; en `latest` y `derived` se mueve solo.
+ * - La **referencia** (mínimo de las bases del entorno enlazado) se muestra AL LADO del puntero en
+ *   cualquier canal con entorno, pero no lo decide: sirve para ver si el puntero va por delante o
+ *   por detrás de lo que de verdad corre. Viene de la caché del inventario y se rotula así;
+ *   «Leer en vivo» la recalcula conectando a cada base.
  * - **Promover** mueve el puntero. No toca ninguna base de datos.
  *
  * Un canal que no resuelve NO es un error de la pantalla: se pinta con el motivo (`code`) en lugar
@@ -60,8 +60,8 @@ export function BlueprintChannelsPanel({ modelId, versions }: BlueprintChannelsP
         <CardTitle>Canales de liberación</CardTitle>
         <CardDescription>
           Cada canal decide qué versión de este blueprint reciben las integraciones y el alta de
-          bases que lo pidan. Promover mueve el puntero de un canal manual: no aplica nada ni toca
-          ninguna base de datos.
+          bases que lo pidan. Promover mueve el puntero de un canal manual; los canales latest y
+          derived se mueven solos. Nada de esto aplica migraciones ni toca ninguna base de datos.
         </CardDescription>
         <CapabilityHint guard={promoteGuard} />
       </CardHeader>
@@ -193,9 +193,7 @@ function ChannelRow({
       {hasEnvironment && (
         <div className="flex flex-col gap-2 rounded-lg bg-surface-muted/50 p-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">
-              {isManual ? 'Referencia (no decide el canal):' : 'Mínimo en el entorno:'}
-            </span>
+            <span className="text-muted-foreground">Referencia (inventario):</span>
             {reference === null ? (
               <span className="text-muted-foreground">—</span>
             ) : (
@@ -221,10 +219,9 @@ function ChannelRow({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            {isManual
-              ? 'La menor versión que tienen hoy las bases del entorno enlazado, para comparar con el puntero.'
-              : 'La menor versión que tienen hoy las bases del entorno enlazado.'}{' '}
-            «Leer en vivo» conecta a cada base: es más lento y tiene límite de uso.
+            La menor versión que tienen las bases del entorno enlazado según el inventario. No
+            decide el canal: sirve para compararla con el puntero. «Leer en vivo» conecta a cada
+            base: es más lento y tiene límite de uso.
           </p>
           {live.isError && (
             <Callout tone="danger" title="No se pudo leer en vivo">

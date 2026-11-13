@@ -79,7 +79,7 @@ describe('BlueprintChannelsPanel', () => {
 
     expect(await screen.findByText('Estable')).toBeInTheDocument()
     expect(screen.getByText('0002')).toBeInTheDocument()
-    expect(screen.getByText('Puntero manual')).toBeInTheDocument()
+    expect(screen.getByText('Puntero del canal')).toBeInTheDocument()
     expect(screen.getByText(/Referencia/)).toBeInTheDocument()
     expect(screen.getByText('0001')).toBeInTheDocument()
   })
@@ -113,10 +113,11 @@ describe('BlueprintChannelsPanel', () => {
 
   it('un canal derivado no ofrece promover', async () => {
     mockSession('owner')
-    mockChannels([resolutionFixture({ resolution_mode: 'derived', source: 'inventory_cache' })])
+    mockChannels([resolutionFixture({ resolution_mode: 'derived', source: 'pointer' })])
     mount()
 
     await screen.findByText('Estable')
+    expect(screen.getByText(/Referencia/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Promover…' })).not.toBeInTheDocument()
   })
 
@@ -229,5 +230,37 @@ describe('BlueprintChannelsPanel', () => {
 
     expect(await screen.findByText('Promovido')).toBeInTheDocument()
     expect(screen.getByText(/listo para producción/)).toBeInTheDocument()
+  })
+
+  it('un movimiento automático del sistema se rotula como automático y no «Por sistema»', async () => {
+    mockSession('owner')
+    mockChannels([resolutionFixture({ resolution_mode: 'latest' })])
+    server.use(
+      http.get(`${CHANNELS_URL}/stable/history`, () =>
+        HttpResponse.json(
+          pageOf([
+            {
+              id: 2,
+              event_type: 'promote',
+              from_version: '0002',
+              to_version: '0003',
+              note: 'automático (latest)',
+              actor_username: 'sistema',
+              actor_type: 'system',
+              created_at: '2026-10-25T10:00:00Z',
+            },
+          ]),
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Historial' }))
+
+    expect(await screen.findByText('Promovido (automático)')).toBeInTheDocument()
+    expect(screen.getByText('Automático (sistema).')).toBeInTheDocument()
+    expect(screen.getByText('automático (latest)')).toBeInTheDocument()
+    expect(screen.queryByText(/Por sistema/)).not.toBeInTheDocument()
   })
 })
