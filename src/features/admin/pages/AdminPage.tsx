@@ -65,7 +65,7 @@ export function AdminPage() {
       />
 
       <div
-        className="flex gap-1 border-b border-border"
+        className="flex flex-wrap gap-1 border-b border-border"
         role="tablist"
         aria-label="Secciones de administración"
       >

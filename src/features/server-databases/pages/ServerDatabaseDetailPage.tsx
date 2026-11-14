@@ -247,7 +247,7 @@ export function ServerDatabaseDetailPage() {
 
       {row ? (
         <>
-          <div className="flex gap-1 border-b border-border" role="tablist">
+          <div className="flex flex-wrap gap-1 border-b border-border" role="tablist">
             <TabButton active={tab === 'grantees'} onClick={() => setTab('grantees')}>
               Usuarios con permisos
             </TabButton>

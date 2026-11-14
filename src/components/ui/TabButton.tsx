@@ -1,4 +1,35 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
+
+/**
+ * Patrón WAI-ARIA de pestañas: las flechas, Inicio y Fin mueven el foco entre las pestañas del
+ * mismo `tablist` y la activan. Se resuelve por DOM (hermanos con `role="tab"`) para no cambiar la
+ * API del componente ni obligar a cada página a conocer a sus vecinas.
+ */
+function moveFocusBetweenTabs(event: KeyboardEvent<HTMLButtonElement>) {
+  const navigationKeys = ['ArrowRight', 'ArrowLeft', 'Home', 'End']
+  if (!navigationKeys.includes(event.key)) return
+
+  const tablist = event.currentTarget.closest('[role="tablist"]')
+  if (!tablist) return
+  const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')).filter(
+    (tab) => !tab.disabled,
+  )
+  const currentIndex = tabs.indexOf(event.currentTarget)
+  if (currentIndex === -1) return
+
+  let targetIndex = currentIndex
+  if (event.key === 'ArrowRight') targetIndex = (currentIndex + 1) % tabs.length
+  if (event.key === 'ArrowLeft') targetIndex = (currentIndex - 1 + tabs.length) % tabs.length
+  if (event.key === 'Home') targetIndex = 0
+  if (event.key === 'End') targetIndex = tabs.length - 1
+
+  event.preventDefault()
+  // `click()` activa la pestaña destino con el mismo camino que el ratón (URL `?tab=`, estado).
+  const targetTab = tabs[targetIndex]
+  if (!targetTab) return
+  targetTab.focus()
+  targetTab.click()
+}
 
 /**
  * Botón de pestaña compartido. Precedente: `AdminPage` (Fase 0 de este patrón). Se extrae porque
@@ -21,6 +52,9 @@ export function TabButton({
       type="button"
       role="tab"
       aria-selected={active}
+      // Tabindex móvil: solo la pestaña activa entra en el orden de Tab; el resto, con flechas.
+      tabIndex={active ? 0 : -1}
+      onKeyDown={moveFocusBetweenTabs}
       onClick={onClick}
       // Foco visible propio: sin él, recorrer las pestañas con teclado no deja rastro de dónde
       // está el foco (el subrayado marca la pestaña ACTIVA, no la enfocada).

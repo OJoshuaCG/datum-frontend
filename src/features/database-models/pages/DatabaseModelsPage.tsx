@@ -41,7 +41,7 @@ export function DatabaseModelsPage() {
         description="Esquemas de base de datos versionados, y los proyectos que los agrupan."
       />
 
-      <div role="tablist" className="flex items-center gap-1 border-b border-border">
+      <div role="tablist" className="flex flex-wrap items-center gap-1 border-b border-border">
         <TabButton active={tab === 'proyectos'} onClick={() => setTab('proyectos')}>
           Proyectos
         </TabButton>

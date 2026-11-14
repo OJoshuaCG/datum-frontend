@@ -439,7 +439,7 @@ export function BlueprintMigrationsPage() {
         onDeleted={() => void navigate('/database-models?tab=blueprints', { replace: true })}
       />
 
-      <div role="tablist" className="flex items-center gap-1 border-b border-border">
+      <div role="tablist" className="flex flex-wrap items-center gap-1 border-b border-border">
         <TabButton active={tab === 'versiones'} onClick={() => setTab('versiones')}>
           Versiones
         </TabButton>

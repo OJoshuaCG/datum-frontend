@@ -184,6 +184,14 @@ description }[]`, `title?`): una lista de definiciones bajo la tabla, **una vez*
 estados presentes, en vez de repetir la misma prosa en cada fila. La usan `CollationDriftPanel` y
 `VersionTablesReportPanel`. Si el aviso es uno solo y bloquea, es un `Callout`.
 
+### `TabButton`
+
+Pestaña compartida; va dentro de un `<div role="tablist" aria-label="…">` con `flex flex-wrap`
+(las barras largas envuelven en vez de desbordar a 375 px). Implementa el patrón WAI-ARIA de
+teclado: ←/→ recorren las pestañas del mismo `tablist` (con vuelta), Inicio/Fin saltan a los
+extremos, y el `tabIndex` es móvil (solo la activa entra con Tab). Mover el foco también la
+activa, por el mismo camino que un clic.
+
 ### `Spinner` / `FullPageSpinner`
 Indicador de carga accesible (`role="status"`). `FullPageSpinner` centra a pantalla
 completa (p. ej. verificación de sesión).

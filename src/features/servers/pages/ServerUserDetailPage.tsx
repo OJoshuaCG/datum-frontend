@@ -286,7 +286,7 @@ function ServerUserDetailContent({
         )}
       </div>
 
-      <div className="flex gap-1 border-b border-border" role="tablist">
+      <div className="flex flex-wrap gap-1 border-b border-border" role="tablist">
         {TABS.map((item) => (
           <TabButton key={item} active={tab === item} onClick={() => setTab(item)}>
             {TAB_LABELS[item]}

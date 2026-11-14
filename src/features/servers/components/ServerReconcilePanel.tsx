@@ -86,7 +86,7 @@ export function ServerReconcilePanel({ serverId }: { serverId: number }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 border-b border-border" role="tablist">
+        <div className="flex flex-wrap gap-1 border-b border-border" role="tablist">
           <SubTabButton active={subTab === 'databases'} onClick={() => setSubTab('databases')}>
             Bases de datos
           </SubTabButton>
