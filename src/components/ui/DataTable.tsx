@@ -188,7 +188,10 @@ export function DataTable<T>({
           de encoger columnas hasta ilegibilidad o esconder el contenido detrás de un scroll que
           en móvil nadie descubre arrastrando. */}
       <div className="hidden overflow-x-auto rounded-card border border-border bg-surface md:block">
-        <table className={cn('w-full border-collapse text-sm', columnWidths && 'table-fixed')}>
+        <table
+          aria-busy={isLoading}
+          className={cn('w-full border-collapse text-sm', columnWidths && 'table-fixed')}
+        >
           {columnWidths && (
             <colgroup>
               {table.getVisibleLeafColumns().map((column) => (
@@ -248,7 +251,7 @@ export function DataTable<T>({
                 <tr key={`skeleton-${rowIndex}`} className="border-b border-border last:border-0">
                   {table.getVisibleLeafColumns().map((column) => (
                     <td key={column.id} className="px-4 py-3">
-                      <div className="h-4 w-full max-w-32 animate-pulse rounded bg-surface-muted" />
+                      <div className="h-4 w-full max-w-32 animate-pulse rounded bg-border" />
                     </td>
                   ))}
                 </tr>
@@ -289,7 +292,7 @@ export function DataTable<T>({
               {Array.from({ length: 3 }).map((__, lineIndex) => (
                 <div
                   key={lineIndex}
-                  className="h-4 w-full max-w-48 animate-pulse rounded bg-surface-muted"
+                  className="h-4 w-full max-w-48 animate-pulse rounded bg-border"
                 />
               ))}
             </div>
