@@ -110,6 +110,18 @@ describe('IntegrationTokenFormModal — qué se ofrece', () => {
     expect(await screen.findByText(/La API de integración está apagada/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Emitir token' })).toBeDisabled()
   })
+
+  it('con el botón deshabilitado lista lo que falta y lo enlaza con aria-describedby', async () => {
+    mockBackend(CEILING)
+    renderForm()
+
+    expect(await screen.findByText('Para emitir el token falta:')).toBeInTheDocument()
+    expect(screen.getByText('Al menos un permiso')).toBeInTheDocument()
+    expect(screen.getByText('Al menos un servidor permitido')).toBeInTheDocument()
+
+    const submit = screen.getByRole('button', { name: 'Emitir token' })
+    expect(submit).toHaveAttribute('aria-describedby', 'integration-token-pending-requirements')
+  })
 })
 
 describe('IntegrationTokenFormModal — vencimiento por tier', () => {

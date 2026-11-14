@@ -64,14 +64,25 @@ export function IntegrationTokenFormModal({
   const blueprintsMissing = destructiveSelected && blueprintIds.length === 0
   const acknowledgementMissing = destructiveSelected && !acknowledged
 
-  const canSubmit =
-    apiEnabled &&
-    trimmedName.length >= INTEGRATION_TOKEN_NAME_MIN &&
-    scopes.length > 0 &&
-    serverIds.length > 0 &&
-    !blueprintsMissing &&
-    !acknowledgementMissing &&
-    !ttlInvalid
+  // Cada requisito que bloquea el envío, en el orden del formulario. El botón deshabilitado sin
+  // explicación obliga a adivinar qué falta; esta lista lo dice y es la única fuente de `canSubmit`.
+  const pendingRequirements: string[] = []
+  if (!apiEnabled) pendingRequirements.push('La API de integración tiene que estar encendida')
+  if (trimmedName.length < INTEGRATION_TOKEN_NAME_MIN) {
+    pendingRequirements.push(`Un nombre de al menos ${INTEGRATION_TOKEN_NAME_MIN} caracteres`)
+  }
+  if (scopes.length === 0) pendingRequirements.push('Al menos un permiso')
+  if (serverIds.length === 0) pendingRequirements.push('Al menos un servidor permitido')
+  if (blueprintsMissing) {
+    pendingRequirements.push('Al menos un blueprint permitido (hay un permiso destructivo)')
+  }
+  if (acknowledgementMissing) {
+    pendingRequirements.push('Confirmar que entendés el alcance del permiso destructivo')
+  }
+  if (ttlInvalid) pendingRequirements.push(`Un vencimiento entre 1 y ${maxTtlDays} días`)
+
+  const canSubmit = pendingRequirements.length === 0
+  const pendingRequirementsId = 'integration-token-pending-requirements'
 
   const submit = () => {
     setFormError(null)
@@ -187,13 +198,31 @@ export function IntegrationTokenFormModal({
           ahí mismo, hay que emitir otro y revocar este.
         </Callout>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={create.isPending}>
-            Cancelar
-          </Button>
-          <Button type="button" onClick={submit} isLoading={create.isPending} disabled={!canSubmit}>
-            Emitir token
-          </Button>
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          {!canSubmit && (
+            <div id={pendingRequirementsId} className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Para emitir el token falta:</p>
+              <ul className="list-disc pl-5">
+                {pendingRequirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={create.isPending}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={submit}
+              isLoading={create.isPending}
+              disabled={!canSubmit}
+              aria-describedby={canSubmit ? undefined : pendingRequirementsId}
+            >
+              Emitir token
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
