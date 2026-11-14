@@ -21,3 +21,4 @@ ClickUp: 1dfm34y4vk5
 
 - L1 (2026-11-14): Adelante con todo, sin poblema en comenzar a modificar todo aunque tome mucho tiempo, seria lo mejor modernizar y mejorar estas vistas
 - L2: Ruta inline por regla del usuario (un solo escritor). Commits solo cuando el usuario los pida, vía agente `git`.
+- L3 (2026-11-14): ActionMenu (src/components/ui/ActionMenu.tsx + test escrito, no ejecutado) aplicado a DatabaseRowActions: con más de 4 acciones, Reasignar/Agentes/Comparar/Clonar/Exportar van al menú; dominio, Editar, Migraciones y destructiva siguen visibles. Pendiente: EngineUsersPanel y ServerUserDetailPage.
