@@ -1,4 +1,5 @@
 import { Badge } from './Badge'
+import { AlertIcon, BanIcon, CheckIcon } from './icons'
 
 /**
  * Estado de una entidad física (base de datos o identidad de usuario del motor) frente al
@@ -9,13 +10,36 @@ import { Badge } from './Badge'
  */
 export type AdoptionStatus = 'adopted' | 'unmanaged' | 'orphan'
 
+// Cada estado lleva icono además del color: el color solo no distingue «no adoptada» de
+// «huérfana» para quien no percibe el rojo/ámbar. El `consequence` va en `title` como refuerzo del
+// hover; lo que decide algo ya está en la etiqueta visible.
 const ADOPTION_BADGE: Record<
   AdoptionStatus,
-  { tone: 'success' | 'warning' | 'error'; label: string }
+  {
+    tone: 'success' | 'warning' | 'error'
+    label: string
+    consequence: string
+    Icon: typeof CheckIcon
+  }
 > = {
-  adopted: { tone: 'success', label: 'Adoptada' },
-  unmanaged: { tone: 'warning', label: 'No adoptada' },
-  orphan: { tone: 'error', label: 'Huérfana' },
+  adopted: {
+    tone: 'success',
+    label: 'Adoptada',
+    consequence: 'Está en el inventario del gateway y se puede operar desde aquí.',
+    Icon: CheckIcon,
+  },
+  unmanaged: {
+    tone: 'warning',
+    label: 'No adoptada',
+    consequence: 'Existe en el motor pero el gateway no la registró: adoptala para gestionarla.',
+    Icon: AlertIcon,
+  },
+  orphan: {
+    tone: 'error',
+    label: 'Huérfana',
+    consequence: 'Está en el inventario pero ya no existe en el motor.',
+    Icon: BanIcon,
+  },
 }
 
 /**
@@ -32,9 +56,10 @@ export function AdoptionBadge({
   status: AdoptionStatus
   className?: string
 }) {
-  const { tone, label } = ADOPTION_BADGE[status]
+  const { tone, label, consequence, Icon } = ADOPTION_BADGE[status]
   return (
-    <Badge tone={tone} className={className}>
+    <Badge tone={tone} className={className} title={consequence}>
+      <Icon className="h-3 w-3" />
       {label}
     </Badge>
   )
