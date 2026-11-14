@@ -10,6 +10,7 @@ import { Topbar } from './Topbar'
 import { SectionErrorFallback } from './SectionErrorFallback'
 
 const COLLAPSE_KEY = 'sidebar-collapsed'
+const MAIN_CONTENT_ID = 'contenido-principal'
 
 function readCollapsed(): boolean {
   if (typeof window === 'undefined') return false
@@ -26,6 +27,16 @@ export function AppShell() {
     window.localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
   }, [collapsed])
 
+  // Esc cierra el menú móvil: sin esto, quien navega con teclado queda atrapado en el drawer.
+  useEffect(() => {
+    if (!mobileOpen) return
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMobileOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [mobileOpen])
+
   return (
     // `minmax(0,1fr)` y no `1fr`: `1fr` es `minmax(auto,1fr)`, y ese `auto` impide que la columna
     // de contenido se encoja por debajo del `min-content` de lo que contiene. El `min-content` de
@@ -38,6 +49,14 @@ export function AppShell() {
         collapsed ? 'lg:grid-cols-[4.5rem_minmax(0,1fr)]' : 'lg:grid-cols-[16rem_minmax(0,1fr)]',
       )}
     >
+      {/* Primer elemento enfocable: permite saltar la navegación de 14 entradas con el teclado. */}
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="sr-only z-50 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Saltar al contenido
+      </a>
+
       <aside className="hidden border-r border-border bg-surface lg:block">
         <div className="sticky top-0 h-screen overflow-y-auto">
           <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((value) => !value)} />
@@ -45,7 +64,12 @@ export function AppShell() {
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menú de navegación"
+        >
           <button
             type="button"
             aria-label="Cerrar menú"
@@ -68,7 +92,11 @@ export function AppShell() {
             colapsar el sidebar, en vez de aprovechar el espacio que el colapso libera. El
             padding solo sigue existiendo para separar el contenido de los bordes de la
             ventana. */}
-        <main className="w-full min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          id={MAIN_CONTENT_ID}
+          tabIndex={-1}
+          className="w-full min-w-0 flex-1 px-4 py-6 focus:outline-none sm:px-6 lg:px-8"
+        >
           {/* Fuera del boundary por sección: es un estado de la cuenta, no de la vista, y tiene que
               seguir a la vista aunque la sección falle. */}
           <SodWarningsBanner />
