@@ -117,7 +117,7 @@ Credenciales portadoras **por usuario** para que un proyecto web propio opere un
 
 ### API de integración (bearer): no la consume la SPA
 
-Los 12 endpoints bajo `/api/v1/integration/*` son la **machine API**: los llama el proyecto web del usuario con `Authorization: Bearer datumint.<id>.<secreto>`, no el navegador. No tienen pantalla ni hook; se listan para que el inventario de endpoints quede completo.
+Los 14 endpoints bajo `/api/v1/integration/*` son la **machine API**: los llama el proyecto web del usuario con `Authorization: Bearer datumint.<id>.<secreto>`, no el navegador. No tienen pantalla ni hook; se listan para que el inventario de endpoints quede completo.
 
 | Endpoint | Estado | Dónde |
 |---|---|---|
@@ -125,6 +125,8 @@ Los 12 endpoints bajo `/api/v1/integration/*` son la **machine API**: los llama 
 | `GET /integration/databases` | — | Machine API, not consumed by the SPA |
 | `GET /integration/databases/{db_id}/blueprint` | — | Machine API, not consumed by the SPA |
 | `GET /integration/databases/{db_id}/migrations/version` | — | Machine API, not consumed by the SPA |
+| `GET /integration/databases/{db_id}/channels/{channel_slug}` | — | Machine API, not consumed by the SPA (scope `blueprint.read_channel`, v48) |
+| `GET /integration/blueprints/{model_id}/channels/{channel_slug}` | — | Machine API, not consumed by the SPA (scope `blueprint.read_channel`, v48; lectura sin base) |
 | `POST /integration/databases` | — | Machine API, not consumed by the SPA |
 | `POST /integration/engine-users` | — | Machine API, not consumed by the SPA |
 | `POST /integration/engine-users/{user_id}/profiles/{profile_id}` | — | Machine API, not consumed by the SPA |
