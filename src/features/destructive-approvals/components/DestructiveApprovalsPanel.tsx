@@ -400,7 +400,7 @@ function VersionRow({
               : ''}
             {approval.author_unknown ? ' · autoría incompleta' : ''}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => onRevoke(approval)}>
+          <Button size="sm" variant="danger-soft" onClick={() => onRevoke(approval)}>
             Revocar…
           </Button>
         </div>
