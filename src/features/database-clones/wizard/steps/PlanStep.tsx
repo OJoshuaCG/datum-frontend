@@ -56,7 +56,7 @@ function RadioCard({
     <label
       className={cn(
         'flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm transition-colors',
-        checked ? 'border-primary bg-primary/5' : 'border-border hover:bg-surface-muted',
+        checked ? 'border-primary bg-primary/5' : 'border-border hover:bg-primary/10',
       )}
     >
       <span className="flex items-center gap-2 font-medium text-foreground">

@@ -40,7 +40,7 @@ export function LayoutStep({ wizard }: { wizard: SnapshotWizard }) {
               'flex cursor-pointer flex-col gap-1.5 rounded-lg border p-3 text-sm transition-colors',
               wizard.layout === option.value
                 ? 'border-primary bg-primary/5'
-                : 'border-border hover:bg-surface-muted',
+                : 'border-border hover:bg-primary/10',
             )}
           >
             <span className="flex items-center gap-2 font-medium text-foreground">

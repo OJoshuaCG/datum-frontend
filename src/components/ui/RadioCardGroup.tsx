@@ -82,7 +82,7 @@ export function RadioCardGroup<T extends string>({
                     ? 'cursor-not-allowed border-border opacity-60'
                     : checked
                       ? 'cursor-pointer border-primary bg-primary/5'
-                      : 'cursor-pointer border-border hover:bg-surface-muted',
+                      : 'cursor-pointer border-border hover:bg-primary/10',
                 )}
               >
                 <span className="flex items-center gap-2 font-medium text-foreground">

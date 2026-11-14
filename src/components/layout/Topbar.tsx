@@ -29,7 +29,7 @@ export function Topbar({ onMenuClick, onToggleSidebar, sidebarCollapsed }: Topba
           type="button"
           onClick={onMenuClick}
           aria-label="Abrir menú"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-input text-foreground hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-input text-foreground hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
         >
           <svg
             viewBox="0 0 24 24"
@@ -49,7 +49,7 @@ export function Topbar({ onMenuClick, onToggleSidebar, sidebarCollapsed }: Topba
             aria-label={sidebarCollapsed ? 'Expandir menú lateral' : 'Comprimir menú lateral'}
             aria-pressed={sidebarCollapsed}
             title={sidebarCollapsed ? 'Expandir menú lateral' : 'Comprimir menú lateral'}
-            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-input text-foreground hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
+            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-input text-foreground hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
           >
             <svg
               viewBox="0 0 24 24"

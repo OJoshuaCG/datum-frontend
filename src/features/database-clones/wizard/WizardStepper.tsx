@@ -36,7 +36,7 @@ export function WizardStepper({ wizard }: { wizard: DatabaseCloneWizard }) {
               className={cn(
                 'flex items-center gap-2 rounded-full px-3 py-1 font-medium transition-colors',
                 isCurrent && 'bg-primary text-primary-foreground',
-                isDone && 'text-success hover:bg-surface-muted',
+                isDone && 'text-success hover:bg-primary/10',
                 !isCurrent && !isDone && 'text-muted-foreground',
                 !canJump && 'cursor-default',
               )}

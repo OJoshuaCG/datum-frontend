@@ -60,7 +60,7 @@ export function ObjectsStep({ wizard }: { wizard: SnapshotWizard }) {
               'flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm transition-colors',
               selection.typeMode === option.value
                 ? 'border-primary bg-primary/5'
-                : 'border-border hover:bg-surface-muted',
+                : 'border-border hover:bg-primary/10',
             )}
           >
             <span className="flex items-center gap-2 font-medium text-foreground">
@@ -91,7 +91,7 @@ export function ObjectsStep({ wizard }: { wizard: SnapshotWizard }) {
                   'rounded-full border px-3 py-1 text-sm transition-colors',
                   active
                     ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border text-muted-foreground hover:bg-surface-muted',
+                    : 'border-border text-muted-foreground hover:bg-primary/10',
                 )}
               >
                 {OBJECT_TYPE_LABELS[type]}
@@ -104,7 +104,7 @@ export function ObjectsStep({ wizard }: { wizard: SnapshotWizard }) {
       <button
         type="button"
         onClick={wizard.applyPortableShortcut}
-        className="self-start rounded-lg border border-border px-3 py-1.5 text-sm text-foreground hover:bg-surface-muted"
+        className="self-start rounded-lg border border-border px-3 py-1.5 text-sm text-foreground hover:bg-primary/10"
       >
         🔓 Excluir rutinas y triggers → baseline portable
       </button>

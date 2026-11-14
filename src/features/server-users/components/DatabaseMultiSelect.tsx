@@ -136,7 +136,7 @@ export function DatabaseMultiSelect({
               {visible.map((name) => {
                 const checked = selectedSet.has(name)
                 return (
-                  <li key={name} className="px-3 py-2 hover:bg-surface-muted">
+                  <li key={name} className="px-3 py-2 hover:bg-primary/10">
                     <Checkbox
                       label={name}
                       checked={checked}
