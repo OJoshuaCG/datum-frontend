@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Callout, Checkbox, CopyIcon, IconButton } from '@/components/ui'
+import { Button, Callout, Checkbox, CopyIcon } from '@/components/ui'
 import { isClipboardAvailable } from '@/lib/utils'
 import { useToast } from '@/lib/toast/use-toast'
 
@@ -73,15 +73,19 @@ export function OneTimeSecretPanel({
           <code className="flex-1 select-all break-all font-mono text-sm text-foreground">
             {secret}
           </code>
-          <IconButton
+          {/* Con texto y no solo icono: es la acción principal de un secreto que se ve una sola vez.
+              El `aria-label` conserva el nombre accesible completo («Copiar el …»). */}
+          <Button
             type="button"
-            label={`Copiar el ${secretLabel}`}
-            icon={<CopyIcon />}
+            aria-label={`Copiar el ${secretLabel}`}
             variant="outline"
-            size="icon-sm"
+            size="sm"
             disabled={!clipboardReady}
             onClick={() => void handleCopy()}
-          />
+          >
+            <CopyIcon />
+            Copiar
+          </Button>
         </div>
         {!clipboardReady && (
           <p className="text-xs text-muted-foreground">

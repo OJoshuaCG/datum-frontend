@@ -218,6 +218,7 @@ export function IntegrationTokenFormModal({
               onClick={submit}
               isLoading={create.isPending}
               disabled={!canSubmit}
+              disabledReason={`Falta: ${pendingRequirements.join('; ')}`}
               aria-describedby={canSubmit ? undefined : pendingRequirementsId}
             >
               Emitir token

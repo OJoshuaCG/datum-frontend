@@ -12,6 +12,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
   size?: ButtonSize
   isLoading?: boolean
+  /**
+   * Motivo por el que el botón está deshabilitado. Se muestra como tooltip nativo y se asocia
+   * como descripción accesible, porque un botón gris sin explicación obliga a adivinar qué falta.
+   * Solo se usa mientras el botón está deshabilitado por `disabled`; el estado de carga no lo necesita.
+   */
+  disabledReason?: string
 }
 
 /**
@@ -19,25 +25,42 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * No usa neumorphism (rompería el contraste de un control interactivo).
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'primary', size = 'md', isLoading = false, disabled, className, children, ...props },
+  {
+    variant = 'primary',
+    size = 'md',
+    isLoading = false,
+    disabled,
+    disabledReason,
+    className,
+    children,
+    title,
+    ...props
+  },
   ref,
 ) {
   const iconOnly = ICON_ONLY_SIZES.has(size)
+  const showDisabledReason = disabled === true && !isLoading && disabledReason !== undefined
   return (
     <button
       ref={ref}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
+      title={showDisabledReason ? disabledReason : title}
       className={cn(
         BUTTON_BASE,
-        'disabled:pointer-events-none disabled:opacity-50',
+        // Con motivo, el puntero debe llegar al botón para que aparezca el tooltip; sin motivo se
+        // conserva el comportamiento anterior.
+        showDisabledReason
+          ? 'disabled:cursor-not-allowed disabled:opacity-50'
+          : 'disabled:pointer-events-none disabled:opacity-50',
         VARIANTS[variant],
         SIZES[size],
         className,
       )}
       {...props}
     >
-      {isLoading && <Spinner className={cn('h-4 w-4', !iconOnly && 'mr-2')} />}
+      {/* El hueco entre spinner y texto lo pone el `gap` del tamaño: un margen extra lo duplicaba. */}
+      {isLoading && <Spinner className="h-4 w-4" />}
       {!(iconOnly && isLoading) && children}
     </button>
   )
