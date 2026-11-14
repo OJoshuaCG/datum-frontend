@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  ActionMenu,
   Button,
   CloneIcon,
   CompareIcon,
@@ -149,6 +150,26 @@ function rowZone(action: DatabaseActionId): number {
 }
 
 /**
+ * A partir de cuántas acciones una fila pasa las menos frecuentes al menú «Más acciones». Una base
+ * gestionada y activa llega a ocho (cinco atajos, editar, migraciones y la destructiva); con
+ * cuatro o menos todo cabe a la vista y el menú solo añadiría un clic.
+ */
+const ROW_VISIBLE_ACTION_LIMIT = 4
+
+/**
+ * Acciones que, en una fila cargada, van al menú. Son las de uso ocasional que ya viven completas
+ * en la ficha (R1); quedan visibles las de dominio, Editar, Migraciones y la destructiva. Ninguna
+ * se elimina: cambia solo dónde se pinta, y el menú ejecuta exactamente `run(action, target)`.
+ */
+const ROW_OVERFLOW_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseActionId>([
+  'reassign',
+  'agent-access',
+  'compare',
+  'clone',
+  'export',
+])
+
+/**
  * Rojo solo en dos intensidades: `danger-soft` para todo botón destructivo que ABRE un diálogo,
  * en fila o en la cabecera; `danger` queda para la confirmación final dentro del diálogo.
  */
@@ -210,30 +231,56 @@ export function DatabaseRowActions({
   onAction: (pending: PendingDatabaseAction) => void
 }) {
   // `sort` es estable: dentro de cada zona se conserva el orden de `getDatabaseActions`.
-  const actions = useActionsFor(target, source).sort((a, b) => rowZone(a) - rowZone(b))
+  const allActions = useActionsFor(target, source).sort((a, b) => rowZone(a) - rowZone(b))
   const run = useRunAction(onAction, source)
+
+  // Solo una fila cargada pasa lo menos frecuente al menú. Una fila con pocas acciones las
+  // conserva todas a la vista: esconder un atajo que cabe no ahorra nada y cuesta un clic.
+  const overflowActions =
+    allActions.length > ROW_VISIBLE_ACTION_LIMIT
+      ? allActions.filter((action) => ROW_OVERFLOW_ACTIONS.has(action))
+      : []
+  const actions = allActions.filter((action) => !overflowActions.includes(action))
 
   // `flex-wrap`: en la tarjeta de `< md` una base activa suma seis atajos y la destructiva, más
   // de lo que cabe en un móvil; sin partir la línea, la destructiva quedaba fuera de pantalla.
+  const renderRowButton = (action: DatabaseActionId) => {
+    const { icon, row, rowText, cardText } = PRESENTATION[action]
+    const label = DATABASE_ACTION_LABELS[action]
+    return (
+      <RowActionButton
+        key={action}
+        label={row === 'text' ? (rowText ?? label) : label}
+        subject={target.name}
+        icon={row === 'icon' ? icon : undefined}
+        iconText={cardText ? 'card' : 'table'}
+        variant={variantOf(action, source)}
+        // Separada del resto: es la única que no se puede deshacer con otro clic.
+        className={DESTRUCTIVE_ACTIONS.has(action) ? 'ml-2' : undefined}
+        onClick={() => run(action, target)}
+      />
+    )
+  }
+
+  const visibleSafeActions = actions.filter((action) => !DESTRUCTIVE_ACTIONS.has(action))
+  const visibleDestructiveActions = actions.filter((action) => DESTRUCTIVE_ACTIONS.has(action))
+
+  // El menú va antes de la destructiva: ésta sigue siendo lo último de la fila, separada del resto.
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
-      {actions.map((action) => {
-        const { icon, row, rowText, cardText } = PRESENTATION[action]
-        const label = DATABASE_ACTION_LABELS[action]
-        return (
-          <RowActionButton
-            key={action}
-            label={row === 'text' ? (rowText ?? label) : label}
-            subject={target.name}
-            icon={row === 'icon' ? icon : undefined}
-            iconText={cardText ? 'card' : 'table'}
-            variant={variantOf(action, source)}
-            // Separada del resto: es la única que no se puede deshacer con otro clic.
-            className={DESTRUCTIVE_ACTIONS.has(action) ? 'ml-2' : undefined}
-            onClick={() => run(action, target)}
-          />
-        )
-      })}
+      {visibleSafeActions.map(renderRowButton)}
+      {overflowActions.length > 0 && (
+        <ActionMenu
+          label={`Más acciones de «${target.name}»`}
+          items={overflowActions.map((action) => ({
+            id: action,
+            label: DATABASE_ACTION_LABELS[action],
+            icon: PRESENTATION[action].icon,
+            onSelect: () => run(action, target),
+          }))}
+        />
+      )}
+      {visibleDestructiveActions.map(renderRowButton)}
     </div>
   )
 }

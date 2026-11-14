@@ -32,6 +32,16 @@ function Glyph({ className = 'h-4 w-4', children }: { className?: string; childr
   )
 }
 
+export function MoreIcon({ className }: IconProps) {
+  return (
+    <Glyph className={className}>
+      <circle cx="4.5" cy="10" r="1" />
+      <circle cx="10" cy="10" r="1" />
+      <circle cx="15.5" cy="10" r="1" />
+    </Glyph>
+  )
+}
+
 export function PencilIcon({ className }: IconProps) {
   return (
     <Glyph className={className}>

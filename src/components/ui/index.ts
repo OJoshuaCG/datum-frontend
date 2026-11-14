@@ -1,3 +1,4 @@
+export * from './ActionMenu'
 export * from './AdoptionBadge'
 export * from './Badge'
 export * from './Button'

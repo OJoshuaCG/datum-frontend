@@ -133,6 +133,16 @@ Multiselect con búsqueda (Downshift `useMultipleSelection`). Mismo estilo de pr
 `Combobox` pero con `selectedItems: T[]` + `onChange(items: T[])`. Lo usa `DataTable` para
 elegir columnas visibles.
 
+### `ActionMenu` — «Más acciones» de una fila
+
+Menú de disclosure (`role="menu"`) para las acciones de uso ocasional de una fila con demasiados botones. Se pinta en un portal con posición fija, porque las tablas recortan el desbordamiento.
+
+- **Complemento, no reemplazo.** Las acciones de dominio («Adoptar», «Aprovisionar»…) y la destructiva siguen como botones visibles; el menú nunca las esconde.
+- **Cada ítem hace lo que hacía su botón.** Un ítem bloqueado se queda en el menú, deshabilitado y con `disabledReason` como tooltip: no desaparece.
+- **Teclado:** el foco entra al primer ítem habilitado; flechas, `Inicio`/`Fin` se mueven (omiten lo deshabilitado); `Esc` cierra y devuelve el foco al disparador; `Tab` y el clic fuera cierran.
+- **Uso actual:** `DatabaseRowActions` (`managed-databases`). Una fila con más de 4 acciones manda al menú Reasignar, Acceso de agentes, Comparar, Clonar y Exportar; con 4 o menos conserva todo a la vista. Y `IdentityActionButtons` en `layout="row"` (usuarios del motor): con más de 3 acciones manda Revelar y Rotar contraseña al menú; la ficha (`layout="header"`) nunca usa menú.
+- El disparador pide un `label` que nombra la fila («Más acciones de «ventas»»): con varias filas, sin ese contexto el lector de pantalla repite lo mismo.
+
 ## Datos y estados
 
 ### `DataTable<T>`
