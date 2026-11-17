@@ -232,6 +232,20 @@ Confirmación construida sobre `Modal`. Para borrados destructivos, `confirmWord
 > Patrón: los diálogos de borrado se **montan condicionalmente** (`{target && <Dialog/>}`)
 > para tener estado fresco sin `setState` en efectos. Ver [`maintenance.md`](maintenance.md).
 
+### `Stepper`
+Indicador de pasos de los asistentes. Cuatro asistentes y el de snapshot copiaban el mismo marcado;
+ahora cada `WizardStepper` solo decide las etapas (`steps`, normalmente desde su `order`), la
+posición (`activeIndex`) y si se puede volver atrás (`canJumpBack`, apagado en el paso terminal
+porque el plan ya se consumió). El de lotes (`clone-batches`) tiene otro indicador y no lo usa.
+
+### `WizardFooter` / `WizardBackButton`
+Pie de navegación de los asistentes (clones, snapshot, comparaciones de esquema, collation y
+exportaciones), fuera del `<Card>`. `sticky bottom-0` + `mt-auto`: la barra queda anclada al pie
+en pasos cortos y visible en pasos largos. `left` recibe «Atrás» (`WizardBackButton`, un
+`IconButton` ghost con chevron) y los `children` van a la derecha: la pista de capacidad y la
+única acción `primary`. Un paso sin navegación (p. ej. `monitor`) no pinta el pie. El de lotes
+(`clone-batches/WizardShell`) tiene otro pie y no lo usa.
+
 ## SQL (visor y editor)
 
 ### `CodeBlock`

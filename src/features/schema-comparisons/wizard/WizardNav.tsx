@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, ChevronLeftIcon, IconButton } from '@/components/ui'
+import { Button, WizardBackButton, WizardFooter } from '@/components/ui'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import { CAPABILITIES, CAPABILITY_ESCALATIONS } from '@/lib/contracts'
 import type { SchemaComparisonWizard } from './use-schema-comparison-wizard'
@@ -168,23 +168,9 @@ export function WizardNav({ wizard }: { wizard: SchemaComparisonWizard }) {
       return null
   }
 
-  return (
-    <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-elevated">
-      {left ?? <span aria-hidden />}
-      <div className="flex flex-wrap items-center justify-end gap-2">{right}</div>
-    </div>
-  )
+  return <WizardFooter left={left}>{right}</WizardFooter>
 }
 
 function BackButton({ wizard, disabled }: { wizard: SchemaComparisonWizard; disabled?: boolean }) {
-  return (
-    <IconButton
-      label="Atrás"
-      icon={<ChevronLeftIcon />}
-      variant="ghost"
-      size="icon"
-      onClick={wizard.back}
-      disabled={disabled}
-    />
-  )
+  return <WizardBackButton onClick={wizard.back} disabled={disabled} />
 }

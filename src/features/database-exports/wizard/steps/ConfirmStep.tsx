@@ -284,8 +284,10 @@ export function ConfirmStep({ wizard }: { wizard: DatabaseExportWizard }) {
         )}
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Con una revisión pendiente, «Revisado, exportar» es la confirmación final: el primero
+              baja a `outline` para que no haya dos botones `danger` seguidos. */}
           <Button
-            variant="danger"
+            variant={wizard.pendingReview != null ? 'outline' : 'danger'}
             disabled={wizard.submitDisabled || !executeGuard.allowed}
             aria-describedby={executeGuard.describedBy}
             isLoading={wizard.preview.isPending || wizard.execute.isPending}

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, ChevronLeftIcon, IconButton } from '@/components/ui'
+import { Button, WizardBackButton, WizardFooter } from '@/components/ui'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import { CAPABILITIES } from '@/lib/contracts'
 import type { CollationConversionWizard } from './use-collation-conversion-wizard'
@@ -33,7 +33,12 @@ export function WizardNav({ wizard }: { wizard: CollationConversionWizard }) {
       const ready = hasCollation && (wizard.mode === 'columns' || hasCharset)
       const disabled = !ready || wizard.createPlan.isPending || wizard.actionCooldown > 0
       if (wizard.jobId != null) {
-        left = <BackButton onClick={() => wizard.goToStep('summary')} disabled={wizard.createPlan.isPending} />
+        left = (
+          <BackButton
+            onClick={() => wizard.goToStep('summary')}
+            disabled={wizard.createPlan.isPending}
+          />
+        )
       }
       right = (
         <Button
@@ -74,27 +79,13 @@ export function WizardNav({ wizard }: { wizard: CollationConversionWizard }) {
   }
 
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-elevated">
-      {left ?? <span aria-hidden />}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {wizard.step === 'plan' && (
-          <CapabilityHint guard={guard} className="max-w-xs text-right" />
-        )}
-        {right}
-      </div>
-    </div>
+    <WizardFooter left={left}>
+      {wizard.step === 'plan' && <CapabilityHint guard={guard} className="max-w-xs text-right" />}
+      {right}
+    </WizardFooter>
   )
 }
 
 function BackButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
-  return (
-    <IconButton
-      label="Atrás"
-      icon={<ChevronLeftIcon />}
-      variant="ghost"
-      size="icon"
-      onClick={onClick}
-      disabled={disabled}
-    />
-  )
+  return <WizardBackButton onClick={onClick} disabled={disabled} />
 }

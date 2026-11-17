@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, ChevronLeftIcon, IconButton } from '@/components/ui'
+import { Button, WizardBackButton, WizardFooter } from '@/components/ui'
 import type { SnapshotWizard } from './use-snapshot-wizard'
 
 /**
@@ -99,22 +99,10 @@ export function WizardNav({ wizard }: { wizard: SnapshotWizard }) {
   return (
     // `mt-auto`: en pasos cortos absorbe el espacio libre y ancla la barra al pie (posición
     // estable). `sticky bottom-0`: en pasos largos la mantiene visible mientras se hace scroll.
-    <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-elevated">
-      {left ?? <span aria-hidden />}
-      <div className="flex flex-wrap justify-end gap-2">{right}</div>
-    </div>
+    <WizardFooter left={left}>{right}</WizardFooter>
   )
 }
 
 function BackButton({ wizard }: { wizard: SnapshotWizard }) {
-  return (
-    <IconButton
-      label="Atrás"
-      icon={<ChevronLeftIcon />}
-      variant="ghost"
-      size="icon"
-      onClick={wizard.back}
-      disabled={wizard.create.isPending}
-    />
-  )
+  return <WizardBackButton onClick={wizard.back} disabled={wizard.create.isPending} />
 }

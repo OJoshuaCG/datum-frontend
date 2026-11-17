@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, ChevronLeftIcon, IconButton } from '@/components/ui'
+import { Button, WizardBackButton, WizardFooter } from '@/components/ui'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import { CAPABILITIES } from '@/lib/contracts'
 import type { DatabaseCloneWizard } from './use-database-clone-wizard'
@@ -98,13 +98,10 @@ export function WizardNav({ wizard }: { wizard: DatabaseCloneWizard }) {
   }
 
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-elevated">
-      {left ?? <span aria-hidden />}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <CapabilityHint guard={guard} className="max-w-xs text-right" />
-        {right}
-      </div>
-    </div>
+    <WizardFooter left={left}>
+      <CapabilityHint guard={guard} className="max-w-xs text-right" />
+      {right}
+    </WizardFooter>
   )
 }
 
@@ -117,14 +114,5 @@ function BackButton({
   disabled?: boolean
   onClick?: () => void
 }) {
-  return (
-    <IconButton
-      label="Atrás"
-      icon={<ChevronLeftIcon />}
-      variant="ghost"
-      size="icon"
-      onClick={onClick ?? wizard.back}
-      disabled={disabled}
-    />
-  )
+  return <WizardBackButton onClick={onClick ?? wizard.back} disabled={disabled} />
 }

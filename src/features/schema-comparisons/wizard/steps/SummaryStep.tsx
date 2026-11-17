@@ -138,8 +138,10 @@ export function SummaryStep({ wizard }: { wizard: SchemaComparisonWizard }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className={hasBlueprint ? '' : 'opacity-60'}>
+                {/* Los dos caminos son excluyentes: solo el habilitado es `primary`. */}
                 <Button
                   className="w-full"
+                  variant={hasBlueprint ? 'primary' : 'outline'}
                   disabled={!hasBlueprint || branchLoading}
                   isLoading={branchLoading && wizard.targetDetail.fetchStatus === 'fetching'}
                   onClick={() => wizard.goToStep('adoptSelect')}
@@ -155,6 +157,7 @@ export function SummaryStep({ wizard }: { wizard: SchemaComparisonWizard }) {
               <div className={!hasBlueprint ? '' : 'opacity-60'}>
                 <Button
                   className="w-full"
+                  variant={hasBlueprint ? 'outline' : 'primary'}
                   disabled={hasBlueprint || branchLoading}
                   isLoading={branchLoading && wizard.targetDetail.fetchStatus === 'fetching'}
                   onClick={() => wizard.goToStep('executeSelect')}
