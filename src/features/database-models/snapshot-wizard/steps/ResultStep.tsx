@@ -1,12 +1,37 @@
+import type { ColumnDef } from '@tanstack/react-table'
 import { useNavigate } from 'react-router-dom'
-import { Badge, Button } from '@/components/ui'
-import type { FromSnapshotOut } from '@/lib/contracts'
+import { Badge, Button, DataTable } from '@/components/ui'
+import type { FromSnapshotOut, SkippedTable } from '@/lib/contracts'
 import { summarizeCounts } from '../logic'
 import { describeSkippedReason } from '../messages'
 import type { SnapshotWizard } from '../use-snapshot-wizard'
 
 /** Vista 7 — resultado de la creación y puente al gate de revisión (Plan 02). */
-export function ResultStep({ wizard, result }: { wizard: SnapshotWizard; result: FromSnapshotOut }) {
+const SKIPPED_COLUMNS: ColumnDef<SkippedTable>[] = [
+  {
+    id: 'table',
+    header: 'Tabla',
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.table}</code>
+    ),
+  },
+  {
+    id: 'reason',
+    header: 'Motivo',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{describeSkippedReason(row.original.reason)}</span>
+    ),
+  },
+]
+
+export function ResultStep({
+  wizard,
+  result,
+}: {
+  wizard: SnapshotWizard
+  result: FromSnapshotOut
+}) {
   const navigate = useNavigate()
   const { model } = result
 
@@ -27,7 +52,9 @@ export function ResultStep({ wizard, result }: { wizard: SnapshotWizard; result:
         <p className="text-sm text-muted-foreground">
           {result.total_versions ?? result.versions.length} versión(es) ·{' '}
           {result.statements_captured} sentencia(s) capturada(s)
-          {result.data_tables_captured ? <> · {result.data_tables_captured} tabla(s) de datos</> : null}
+          {result.data_tables_captured ? (
+            <> · {result.data_tables_captured} tabla(s) de datos</>
+          ) : null}
         </p>
       </div>
 
@@ -47,7 +74,9 @@ export function ResultStep({ wizard, result }: { wizard: SnapshotWizard; result:
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <code className="font-mono text-xs text-muted-foreground">v{version.version}</code>
+                  <code className="font-mono text-xs text-muted-foreground">
+                    v{version.version}
+                  </code>
                   {isData ? (
                     <span title="Datos-semilla: atados al motor.">
                       <Badge tone="warning">🌱 datos</Badge>
@@ -77,26 +106,12 @@ export function ResultStep({ wizard, result }: { wizard: SnapshotWizard; result:
           <p className="text-sm font-medium text-foreground">
             Tablas omitidas ({result.skipped_tables.length})
           </p>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="p-2">Tabla</th>
-                  <th className="p-2">Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.skipped_tables.map((skipped) => (
-                  <tr key={skipped.table} className="border-t border-border">
-                    <td className="p-2">
-                      <code className="font-mono text-xs text-foreground">{skipped.table}</code>
-                    </td>
-                    <td className="p-2 text-muted-foreground">{describeSkippedReason(skipped.reason)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={result.skipped_tables}
+            columns={SKIPPED_COLUMNS}
+            enableGlobalFilter={false}
+            getRowId={(skipped) => skipped.table}
+          />
         </div>
       )}
 

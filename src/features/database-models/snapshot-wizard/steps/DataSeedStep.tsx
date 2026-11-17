@@ -1,8 +1,9 @@
-import { Badge, Button, Checkbox, Spinner } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, Checkbox, DataTable, Spinner } from '@/components/ui'
 import { CapabilityCallout, useCapabilityGuard } from '@/features/auth'
 import { CAPABILITIES, MAX_DATA_TABLES, type OnOversize } from '@/lib/contracts'
 import { cn } from '@/lib/utils'
-import { HIGH_ROW_ESTIMATE } from '../logic'
+import { HIGH_ROW_ESTIMATE, type DataCandidate } from '../logic'
 import type { SnapshotWizard } from '../use-snapshot-wizard'
 
 const OVERSIZE_OPTIONS: { value: OnOversize; label: string }[] = [
@@ -27,6 +28,97 @@ export function DataSeedStep({ wizard }: { wizard: SnapshotWizard }) {
     CAPABILITIES.blueprintsCaptures,
     'incluir datos-semilla en un snapshot',
   )
+
+  // Sin ordenar: el orden de las candidatas lo decide `dataCandidateList`. Los controles por fila
+  // conservan su `aria-label` con el nombre de la tabla: sin él un lector de pantalla oye N
+  // casillas idénticas.
+  const candidateColumns: ColumnDef<DataCandidate>[] = [
+    {
+      id: 'select',
+      header: '',
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const candidate = row.original
+        const selected = candidate.table in wizard.dataModes
+        const disabled = !candidate.hasPrimaryKey || (!selected && atLimit)
+        return (
+          <input
+            type="checkbox"
+            className="accent-primary"
+            checked={selected}
+            disabled={disabled}
+            onChange={() => wizard.toggleDataTable(candidate.table)}
+            aria-label={`Seleccionar ${candidate.table}`}
+            title={!candidate.hasPrimaryKey ? 'Sin PK: no puede sembrar datos' : undefined}
+          />
+        )
+      },
+    },
+    {
+      id: 'table',
+      header: 'Tabla',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <code className="font-mono text-xs text-foreground">{row.original.table}</code>
+      ),
+    },
+    {
+      id: 'rows',
+      header: 'Filas (est.)',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const estimatedRows = row.original.estimatedRows
+        return (
+          <div className="tabular-nums">
+            <span className={cn(estimatedRows >= HIGH_ROW_ESTIMATE && 'text-warning')}>
+              {estimatedRows.toLocaleString('es')}
+            </span>
+            {/* Visible y no en un `title`: decide si conviene incluir la tabla, y un ⚠ suelto no
+                dice nada por teclado, lector de pantalla ni táctil. */}
+            {estimatedRows >= HIGH_ROW_ESTIMATE && (
+              <span className="block text-xs text-warning">
+                <span aria-hidden>⚠ </span>puede superar el guardrail y omitirse
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'pk',
+      header: 'PK',
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.hasPrimaryKey ? (
+          <Badge tone="success">sí</Badge>
+        ) : (
+          <Badge tone="neutral">no</Badge>
+        ),
+    },
+    {
+      id: 'mode',
+      header: 'Modo',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const table = row.original.table
+        return (
+          <select
+            value={wizard.dataModes[table] ?? 'upsert'}
+            disabled={!(table in wizard.dataModes)}
+            onChange={(event) =>
+              wizard.setDataMode(table, event.target.value as 'upsert' | 'insert_ignore')
+            }
+            className="h-8 rounded-md border border-input bg-surface px-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            aria-label={`Modo de siembra de ${table}`}
+          >
+            <option value="upsert">upsert</option>
+            <option value="insert_ignore">insert_ignore</option>
+          </select>
+        )
+      },
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-5">
@@ -83,85 +175,12 @@ export function DataSeedStep({ wizard }: { wizard: SnapshotWizard }) {
             {atLimit && <Badge tone="warning">Límite de tablas alcanzado</Badge>}
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="w-10 p-2" />
-                  <th className="p-2">Tabla</th>
-                  <th className="p-2 text-right">Filas (est.)</th>
-                  <th className="p-2">PK</th>
-                  <th className="p-2">Modo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((candidate) => {
-                  const selected = candidate.table in wizard.dataModes
-                  const disabled = !candidate.hasPrimaryKey || (!selected && atLimit)
-                  return (
-                    <tr key={candidate.table} className="border-t border-border">
-                      <td className="p-2 text-center">
-                        <input
-                          type="checkbox"
-                          className="accent-primary"
-                          checked={selected}
-                          disabled={disabled}
-                          onChange={() => wizard.toggleDataTable(candidate.table)}
-                          aria-label={`Seleccionar ${candidate.table}`}
-                          title={
-                            !candidate.hasPrimaryKey ? 'Sin PK: no puede sembrar datos' : undefined
-                          }
-                        />
-                      </td>
-                      <td className="p-2">
-                        <code className="font-mono text-xs text-foreground">{candidate.table}</code>
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        <span
-                          className={cn(
-                            candidate.estimatedRows >= HIGH_ROW_ESTIMATE && 'text-warning',
-                          )}
-                        >
-                          {candidate.estimatedRows.toLocaleString('es')}
-                        </span>
-                        {/* Visible y no en un `title`: decide si conviene incluir la tabla, y
-                            un ⚠ suelto no dice nada por teclado, lector de pantalla ni táctil. */}
-                        {candidate.estimatedRows >= HIGH_ROW_ESTIMATE && (
-                          <span className="block text-xs text-warning">
-                            <span aria-hidden>⚠ </span>puede superar el guardrail y omitirse
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2">
-                        {candidate.hasPrimaryKey ? (
-                          <Badge tone="success">sí</Badge>
-                        ) : (
-                          <Badge tone="neutral">no</Badge>
-                        )}
-                      </td>
-                      <td className="p-2">
-                        <select
-                          value={wizard.dataModes[candidate.table] ?? 'upsert'}
-                          disabled={!selected}
-                          onChange={(event) =>
-                            wizard.setDataMode(
-                              candidate.table,
-                              event.target.value as 'upsert' | 'insert_ignore',
-                            )
-                          }
-                          className="h-8 rounded-md border border-input bg-surface px-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-                          aria-label={`Modo de siembra de ${candidate.table}`}
-                        >
-                          <option value="upsert">upsert</option>
-                          <option value="insert_ignore">insert_ignore</option>
-                        </select>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={candidates}
+            columns={candidateColumns}
+            enableGlobalFilter={false}
+            getRowId={(candidate) => candidate.table}
+          />
 
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium text-foreground">
