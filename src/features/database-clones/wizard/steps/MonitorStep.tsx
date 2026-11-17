@@ -1,6 +1,12 @@
-import { Badge, Button, ErrorState, Pagination, Spinner } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, ErrorState, Pagination, Spinner } from '@/components/ui'
 import { cn, isClipboardAvailable } from '@/lib/utils'
-import { CAPABILITIES, type ClonePhase, type CloneItemStatus } from '@/lib/contracts'
+import {
+  CAPABILITIES,
+  type ClonePhase,
+  type CloneItemOut,
+  type CloneItemStatus,
+} from '@/lib/contracts'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import { useCloneDiagnostics } from '../../hooks/use-clone-diagnostics'
 import type { DatabaseCloneWizard } from '../use-database-clone-wizard'
@@ -48,6 +54,68 @@ function PhaseBar({ phase }: { phase: ClonePhase | null }) {
  * Vista 6 — monitor de ejecución: sigue el job en segundo plano por polling de `GET /{id}` y el
  * detalle de pasos por `GET /{id}/items`. Sin websockets: el polling es el único mecanismo.
  */
+/**
+ * Sin ordenar ni filtrar en el cliente: la tabla muestra UNA página del servidor, en el orden de
+ * ejecución (`seq`). La paginación es la de `Pagination`, por eso no se pasa `clientPageSize`.
+ */
+const ITEM_COLUMNS: ColumnDef<CloneItemOut>[] = [
+  {
+    id: 'seq',
+    header: 'Seq',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.seq}</span>,
+  },
+  {
+    id: 'kind',
+    header: 'Paso',
+    enableSorting: false,
+    cell: ({ row }) => row.original.kind,
+  },
+  {
+    id: 'object',
+    header: 'Objeto',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-foreground">
+        {row.original.object_type} · {row.original.object_name}
+      </span>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Estado',
+    enableSorting: false,
+    cell: ({ row }) =>
+      row.original.status ? (
+        <Badge tone={ITEM_STATUS_TONE[row.original.status]}>{row.original.status}</Badge>
+      ) : (
+        <Badge tone="neutral">pendiente</Badge>
+      ),
+  },
+  {
+    id: 'rows',
+    header: 'Filas',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.rows_copied ?? '—'}</span>
+    ),
+  },
+  {
+    id: 'execution_ms',
+    header: 'ms',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.execution_ms ?? '—'}</span>
+    ),
+  },
+  {
+    id: 'error',
+    header: 'Error',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.error ?? '—'}</span>,
+  },
+]
+
 export function MonitorStep({ wizard }: { wizard: DatabaseCloneWizard }) {
   const { job, items } = wizard
   // Antes de los early returns: los hooks no pueden quedar detrás de un `return` condicional.
@@ -105,7 +173,10 @@ export function MonitorStep({ wizard }: { wizard: DatabaseCloneWizard }) {
             <p className="text-xs text-muted-foreground">Copiando…</p>
           ) : (
             tableProgress.map(([table, rows]) => (
-              <div key={table} className="flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-sm">
+              <div
+                key={table}
+                className="flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-sm"
+              >
                 <span className="text-foreground">{table}</span>
                 <span className="text-muted-foreground">{rows} filas</span>
               </div>
@@ -137,7 +208,9 @@ export function MonitorStep({ wizard }: { wizard: DatabaseCloneWizard }) {
       {data.status === 'interrupted' && (
         <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-4">
           <p className="text-sm font-semibold text-foreground">⚠ El proceso se reinició a mitad</p>
-          <p className="text-xs text-muted-foreground">Los jobs no son durables: replanea y reejecuta.</p>
+          <p className="text-xs text-muted-foreground">
+            Los jobs no son durables: replanea y reejecuta.
+          </p>
           <Button variant="outline" className="self-start" onClick={wizard.replan}>
             Replanear
           </Button>
@@ -155,7 +228,9 @@ export function MonitorStep({ wizard }: { wizard: DatabaseCloneWizard }) {
 
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pasos ejecutados</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Pasos ejecutados
+          </p>
           {/*
             La tabla de abajo muestra una página de 50 pasos, y el reparto del tiempo solo cierra
             con la serie completa: estos botones traen TODAS las páginas y entregan el
@@ -197,42 +272,12 @@ export function MonitorStep({ wizard }: { wizard: DatabaseCloneWizard }) {
           <ErrorState error={items.error} title="No se pudieron cargar los pasos" />
         ) : items.data && items.data.items.length > 0 ? (
           <>
-            <div className="overflow-x-auto rounded-card border border-border">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Seq</th>
-                    <th className="px-3 py-2 font-semibold">Paso</th>
-                    <th className="px-3 py-2 font-semibold">Objeto</th>
-                    <th className="px-3 py-2 font-semibold">Estado</th>
-                    <th className="px-3 py-2 font-semibold">Filas</th>
-                    <th className="px-3 py-2 font-semibold">ms</th>
-                    <th className="px-3 py-2 font-semibold">Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.data.items.map((item) => (
-                    <tr key={item.id} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-muted-foreground">{item.seq}</td>
-                      <td className="px-3 py-2">{item.kind}</td>
-                      <td className="px-3 py-2 text-foreground">
-                        {item.object_type} · {item.object_name}
-                      </td>
-                      <td className="px-3 py-2">
-                        {item.status ? (
-                          <Badge tone={ITEM_STATUS_TONE[item.status]}>{item.status}</Badge>
-                        ) : (
-                          <Badge tone="neutral">pendiente</Badge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{item.rows_copied ?? '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{item.execution_ms ?? '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{item.error ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={items.data.items}
+              columns={ITEM_COLUMNS}
+              enableGlobalFilter={false}
+              getRowId={(item) => String(item.id)}
+            />
             <Pagination
               page={items.data.pagination.page}
               pages={items.data.pagination.pages}

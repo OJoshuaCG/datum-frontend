@@ -1,10 +1,11 @@
-import { Badge, Button, EmptyState, Input, Spinner } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, EmptyState, Input, Spinner } from '@/components/ui'
 import { engineLabel, formatBytes, formatInteger } from '@/lib/utils'
 import { Callout } from '@/components/ui'
 import { PlainDataNotice, WarningList } from '../../components/Callout'
 import { readSpecValue } from '../../logic'
 import { CapabilityHint, useCapabilities, useCapabilityGuard } from '@/features/auth'
-import { CAPABILITIES } from '@/lib/contracts'
+import { CAPABILITIES, type ExportPlannedObject } from '@/lib/contracts'
 import { ErrorRecoveryPanel } from '../ErrorRecoveryPanel'
 import type { DatabaseExportWizard } from '../use-database-export-wizard'
 
@@ -15,6 +16,58 @@ import type { DatabaseExportWizard } from '../use-database-export-wizard'
  */
 
 const CONFIRM_SCOPE_DROP_PATH = 'structure.confirm_scope_drop'
+
+const PLAN_COLUMNS: ColumnDef<ExportPlannedObject>[] = [
+  {
+    id: 'seq',
+    header: '#',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.seq}</span>,
+  },
+  {
+    id: 'phase',
+    header: 'Fase',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.phase}</span>,
+  },
+  {
+    id: 'object_type',
+    header: 'Tipo',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.object_type}</span>,
+  },
+  {
+    id: 'name',
+    header: 'Nombre',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="text-foreground">{row.original.name}</span>
+        {!row.original.deterministic && <Badge tone="warning">⚠ sin orden garantizado</Badge>}
+      </span>
+    ),
+  },
+  {
+    id: 'with_data',
+    header: 'Datos',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.with_data ? 'Sí' : '—'}</span>
+    ),
+  },
+  {
+    id: 'estimated_rows',
+    header: 'Filas',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.estimated_rows == null
+          ? '—'
+          : `~${formatInteger(row.original.estimated_rows)}`}
+      </span>
+    ),
+  },
+]
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
@@ -147,51 +200,16 @@ export function ConfirmStep({ wizard }: { wizard: DatabaseExportWizard }) {
               La lista se renderiza EXACTAMENTE en el orden en que llega. `step` es la fuente de
               verdad del orden de emisión y `phase` solo una etiqueta legible: el orden es una
               garantía del backend, no un detalle de presentación, así que no se reordena ni
-              alfabéticamente ni por tipo. Por lo mismo no se usa `DataTable`, que ordena y filtra en
-              cliente: aquí eso destruiría la única información que la lista transporta.
+              alfabéticamente ni por tipo. Por eso TODAS las columnas llevan `enableSorting: false` y
+              se apaga el filtro global: `DataTable` ordena y filtra en cliente por defecto, y aquí
+              eso destruiría la única información que la lista transporta.
             */}
-            <div className="overflow-x-auto rounded-card border border-border">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">#</th>
-                    <th className="px-3 py-2 font-semibold">Fase</th>
-                    <th className="px-3 py-2 font-semibold">Tipo</th>
-                    <th className="px-3 py-2 font-semibold">Nombre</th>
-                    <th className="px-3 py-2 font-semibold">Datos</th>
-                    <th className="px-3 py-2 font-semibold">Filas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.objects.map((object) => (
-                    <tr
-                      key={`${object.seq}:${object.object_type}:${object.name}`}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-3 py-2 text-muted-foreground">{object.seq}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{object.phase}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{object.object_type}</td>
-                      <td className="px-3 py-2">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-foreground">{object.name}</span>
-                          {!object.deterministic && (
-                            <Badge tone="warning">⚠ sin orden garantizado</Badge>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {object.with_data ? 'Sí' : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {object.estimated_rows == null
-                          ? '—'
-                          : `~${formatInteger(object.estimated_rows)}`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={preview.objects}
+              columns={PLAN_COLUMNS}
+              enableGlobalFilter={false}
+              getRowId={(object) => `${object.seq}:${object.object_type}:${object.name}`}
+            />
             {nonDeterministic.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Las tablas marcadas salen sin orden garantizado (no tienen clave primaria ni una
