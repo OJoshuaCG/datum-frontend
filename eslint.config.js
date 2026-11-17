@@ -6,6 +6,18 @@ import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+const BUTTON_RULE = {
+  selector: "JSXOpeningElement[name.name='button']",
+  message:
+    'No uses <button> crudo: usá Button, IconButton, TabButton o RowActionButton de @/components/ui (docs/ui-conventions.md §1). Si de verdad es un chip, disclosure o fila clicable, agregá el archivo al override de eslint.config.js con el motivo.',
+}
+
+const TABLE_RULE = {
+  selector: "JSXOpeningElement[name.name='table']",
+  message:
+    'No uses <table> propia: usá DataTable de @/components/ui (docs/ui-conventions.md §6). Si de verdad no encaja (filas expandibles, rejilla de un SELECT arbitrario), documentá el motivo en el JSDoc del componente y agregá el archivo al override de tablas de eslint.config.js.',
+}
+
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'node_modules']),
   {
@@ -67,20 +79,21 @@ export default defineConfig([
   // RowActionButton): un `<button>` crudo copia estilos que luego divergen. Los que de verdad no
   // encajan (chips con `aria-pressed`, disclosures, filas clicables, enlaces en línea) están
   // listados en el override de abajo; ver `docs/ui-conventions.md` §1.
+  //
+  // Las tablas salen de `DataTable` (docs/ui-conventions.md §6): una `<table>` propia no tiene
+  // vista de tarjetas en móvil, y suele traer scroll horizontal. Las que no pueden (filas
+  // expandibles, rejillas de un SELECT arbitrario, tablas con scroll vertical propio) están
+  // listadas más abajo, y cada una documenta el motivo en el JSDoc de su componente.
+  //
+  // `no-restricted-syntax` se REEMPLAZA entero por bloque, no se fusiona: por eso cada lista de
+  // excepciones deja activa la otra regla en vez de apagarlas las dos.
   {
     files: ['src/**/*.tsx'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "JSXOpeningElement[name.name='button']",
-          message:
-            'No uses <button> crudo: usá Button, IconButton, TabButton o RowActionButton de @/components/ui (docs/ui-conventions.md §1). Si de verdad es un chip, disclosure o fila clicable, agregá el archivo al override de eslint.config.js con el motivo.',
-        },
-      ],
+      'no-restricted-syntax': ['error', BUTTON_RULE, TABLE_RULE],
     },
   },
-  // Excepciones a la regla anterior. Un archivo nuevo aquí necesita una razón de las de abajo:
+  // Excepciones a la regla de botones. Un archivo nuevo aquí necesita una razón de las de abajo:
   // - Los primitivos viven en `components/ui` y los tests simulan el DOM a mano.
   // - Chrome de layout con medidas propias (`h-9`): Topbar, ThemeToggle, Sidebar, AppShell, toast.
   // - Chips o toggles con `aria-pressed`, disclosures con `aria-expanded`, filas/resultados
@@ -103,6 +116,36 @@ export default defineConfig([
       'src/features/servers/components/{EngineUsersPanel,ServerDatabaseCombobox,ServerReconcilePanel}.tsx',
       'src/features/sql-console/components/ResultsPanel.tsx',
       'src/features/sql-console/pages/SqlConsolePage.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error', TABLE_RULE],
+    },
+  },
+  // Excepciones a la regla de tablas. Cada archivo explica su motivo en el JSDoc del componente:
+  // - Filas expandibles con una subtabla anidada (EngineUsersPanel, InventoryStep).
+  // - Rejillas del resultado de un SELECT arbitrario, con columnas dinámicas (StatementResultCard,
+  //   SelectResultsPage).
+  // - Región con scroll vertical propio y SQL multilínea (ReconcilePartialSection) o con filas
+  //   resaltadas por bloqueo y `table-fixed` sin scroll horizontal (RenameSlugDialog).
+  {
+    files: [
+      'src/features/collation-conversions/wizard/steps/InventoryStep.tsx',
+      'src/features/database-models/components/RenameSlugDialog.tsx',
+      'src/features/managed-databases/components/ReconcilePartialSection.tsx',
+      'src/features/managed-databases/pages/SelectResultsPage.tsx',
+      'src/features/servers/components/EngineUsersPanel.tsx',
+      'src/features/sql-console/components/StatementResultCard.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error', BUTTON_RULE],
+    },
+  },
+  // Con las dos excepciones a la vez no queda nada por restringir.
+  {
+    files: [
+      'src/components/ui/**',
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'src/features/servers/components/EngineUsersPanel.tsx',
     ],
     rules: {
       'no-restricted-syntax': 'off',
