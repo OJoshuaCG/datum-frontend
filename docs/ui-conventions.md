@@ -105,18 +105,38 @@ Antes de escribir un control o una vista, recorré esto en orden:
   selección) es `ghost`, no rojo. No confundas «Cancelar» de un formulario con «Cancelar
   solicitud» de un flujo.
 
-## 6. Tablas **[revisión]**
+## 6. Tablas **[ESLint]**
 
 - Toda lista de filas es un `DataTable`. **Ninguna tabla lleva scroll horizontal**; por debajo de
-  `md` `DataTable` pinta una tarjeta por fila. No armes un `<table>` propio fuera de él.
+  `md` `DataTable` pinta una tarjeta por fila. No armes un `<table>` propio fuera de él: ESLint
+  (`no-restricted-syntax`, selector `JSXOpeningElement[name.name='table']`) lo prohíbe fuera de
+  `components/ui` y de la lista de excepciones de `eslint.config.js`.
 - **La columna de acciones** es la de `header: ''`: en la tarjeta de `< md` queda sin etiqueta
   al final. Tiene que llevar `enableSorting: false` y `enableHiding: false`.
-- **`columns` va en `useMemo`** y los callbacks que usa, en `useCallback`; si no, `react-hooks`
-  marca `exhaustive-deps` y la tabla se recalcula en cada render.
+- **`columns`**: a nivel de módulo si no dependen de props ni de estado (lo habitual en tablas de
+  solo lectura); en `useMemo` (con sus callbacks en `useCallback`) si dependen; si no,
+  `react-hooks` marca `exhaustive-deps` y la tabla se recalcula en cada render. Dentro de un
+  helper de render condicional (que no puede llamar hooks) se declaran en línea.
+- **Si el orden es información, apagá la ordenación:** `enableSorting: false` en TODAS las columnas
+  y `enableGlobalFilter={false}`. Aplica al orden de ejecución, al de aplicación de versiones, al
+  de las columnas del motor y a los resultados que el servidor ya entrega ordenados. `DataTable`
+  ordena y filtra en cliente por defecto, y un clic en la cabecera destruiría esa información.
+- **Páginas del servidor:** `DataTable` no pagina si no pasás `clientPageSize`. Con paginación del
+  servidor (`Pagination` debajo) no lo pases, y apagá ordenación y filtro: se ordenaría solo la
+  página visible.
+- **Controles por fila** (checkbox, `<select>`): conservan su `aria-label` con el nombre de la fila;
+  sin él un lector de pantalla oye N controles idénticos.
 - `getRowId` con el id estable del dominio, no el índice.
 - `enableGlobalFilter={false}` si la lista tiene pocas filas y la búsqueda no aporta.
-- **Excepción documentada:** `EngineUsersPanel` (filas expandibles con subtabla, que `DataTable`
-  no soporta). Una excepción nueva se justifica en el JSDoc del propio componente.
+- **Excepciones documentadas** (cada una explica su motivo en el JSDoc de su componente y está en
+  el override de tablas de `eslint.config.js`):
+  - `EngineUsersPanel` y `InventoryStep` (modo `columns`): filas expandibles con subtabla anidada,
+    que `DataTable` no soporta.
+  - `StatementResultCard` y `SelectResultsPage`: rejillas del resultado de un SELECT arbitrario,
+    con columnas dinámicas y celdas de ancho arbitrario; el scroll horizontal es parte del contenido.
+  - `ReconcilePartialSection`: región con scroll vertical propio y SQL multilínea.
+  - `RenameSlugDialog`: filas resaltadas por bloqueo y `table-fixed` sin scroll horizontal.
+  Una excepción nueva se justifica en el JSDoc del componente y se agrega a ese override.
 - Estados de fila (adoptada / no gestionada / huérfana, etc.): usá `Badge` con `tone` y, para
   explicar el significado, `StatusLegend` **una vez** bajo la tabla, no prosa repetida por fila.
 
