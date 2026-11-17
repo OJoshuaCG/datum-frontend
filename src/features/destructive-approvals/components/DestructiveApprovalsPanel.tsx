@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Badge,
   Button,
@@ -8,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
   ErrorState,
+  Input,
+  Pagination,
   Spinner,
 } from '@/components/ui'
 import { useCapabilityGuard, useSession } from '@/features/auth'
@@ -15,10 +18,12 @@ import {
   APPROVAL_BATCH_MAX_ITEMS,
   CAPABILITIES,
   type BatchItemError,
+  type ActorRef,
   type BatchItemResult,
   type DestructiveApproval,
   type DestructiveVersion,
 } from '@/lib/contracts'
+import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/utils/format'
 import { useDestructiveVersions } from '../hooks/use-destructive-approvals'
 import { DESTRUCTIVE_APPROVALS_ANCHOR_ID } from '../anchors'
@@ -40,6 +45,18 @@ import {
   batchItemMessage,
   directionLabel,
 } from '../messages'
+import {
+  APPROVAL_STATUS_FILTERS,
+  countByStatusFilter,
+  DEFAULT_VERSION_FILTERS,
+  DEFAULT_VERSION_PAGE_SIZE,
+  filterDestructiveVersions,
+  paginate,
+  SMALLEST_VERSION_PAGE_SIZE,
+  VERSION_PAGE_SIZE_OPTIONS,
+  type ApprovalStatusFilter,
+  type DestructiveVersionFilters,
+} from '../version-filters'
 import { ApproveDestructiveBatchDialog } from './ApproveDestructiveBatchDialog'
 import { ApproveDestructiveDialog } from './ApproveDestructiveDialog'
 import { RevokeApprovalDialog } from './RevokeApprovalDialog'
@@ -60,6 +77,13 @@ interface DestructiveApprovalsPanelProps {
    * Sin base: aprobar vale para todas las bases protegidas del blueprint (alcance `blueprint`).
    */
   database?: DestructiveApprovalsDatabase
+  /**
+   * Abre la versión en la pestaña «Versiones» de la página del blueprint. Hace falta además del
+   * enlace porque esa página lee `?version=` solo al montar y el enlace navega a la MISMA ruta: sin
+   * esto, la URL cambiaría y la ficha seguiría mostrando otra versión. Desde la ficha de una base el
+   * enlace cambia de ruta, la página se monta de nuevo y no hace falta.
+   */
+  onOpenVersion?: (version: string) => void
 }
 
 /**
@@ -80,6 +104,7 @@ export function DestructiveApprovalsPanel({
   modelId,
   modelName,
   database,
+  onOpenVersion,
 }: DestructiveApprovalsPanelProps) {
   const versions = useDestructiveVersions(modelId, database?.id ?? null)
   const approveGuard = useCapabilityGuard(
@@ -100,14 +125,36 @@ export function DestructiveApprovalsPanel({
   const [selection, setSelection] = useState<BatchSelection>(new Map())
   // Último motivo de fallo por fila de un lote, para dejarlas marcadas en la lista.
   const [failures, setFailures] = useState<ReadonlyMap<string, BatchItemError>>(new Map())
+  const [filters, setFilters] = useState<DestructiveVersionFilters>(DEFAULT_VERSION_FILTERS)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_VERSION_PAGE_SIZE)
   const { admin } = useSession()
 
   const confirmWord = database?.name ?? modelName ?? ''
   const rows = versions.data ?? []
+  const statusCounts = countByStatusFilter(rows)
+  const filteredRows = filterDestructiveVersions(rows, filters)
+  const visible = paginate(filteredRows, page, pageSize)
+  const hasActiveFilters =
+    filters.status !== DEFAULT_VERSION_FILTERS.status || filters.query.trim() !== ''
   const selectedRows = selectedBatchRows(rows, selection)
-  const selectableRows = rows.filter(
+  // «Seleccionar pendientes» marca lo que se está mirando: con un filtro puesto (por ejemplo, las
+  // de una persona) marcar también filas ocultas aprobaría cosas que nadie tiene en pantalla. Abarca
+  // todas las páginas del filtro, no solo la visible, porque la página es solo un corte de lectura.
+  const selectableRows = filteredRows.filter(
     (row) => rowNeedsApproval(row) && batchBlockReason(row, admin?.id) === null,
   )
+
+  // Cambiar un filtro vuelve a la página 1 en el mismo evento: quedarse en la 3 de un resultado
+  // que ahora tiene una sola página mostraría la última por el acotado de `paginate`, no la primera.
+  const updateFilters = (next: Partial<DestructiveVersionFilters>) => {
+    setFilters((previous) => ({ ...previous, ...next }))
+    setPage(1)
+  }
+  const clearFilters = () => {
+    setFilters(DEFAULT_VERSION_FILTERS)
+    setPage(1)
+  }
 
   const toggleRow = (row: DestructiveVersion, checked: boolean) => {
     const key = rowBatchKey(row)
@@ -188,6 +235,12 @@ export function DestructiveApprovalsPanel({
           </p>
         ) : (
           <>
+            <VersionFilterBar
+              filters={filters}
+              counts={statusCounts}
+              onStatusChange={(status) => updateFilters({ status })}
+              onQueryChange={(query) => updateFilters({ query })}
+            />
             {approveGuard.allowed && selectableRows.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground" aria-live="polite">
@@ -219,23 +272,60 @@ export function DestructiveApprovalsPanel({
                 </div>
               </div>
             )}
-            <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-              {rows.map((row) => (
-                <VersionRow
-                  key={`${row.migration_id}-${row.direction}`}
-                  row={row}
-                  canApprove={approveGuard.allowed}
-                  selected={isRowSelected(selection, row)}
-                  selectionStale={isSelectionStale(selection, row)}
-                  selectionFull={isSelectionFull(selection)}
-                  blockText={blockTextFor(row, admin?.id)}
-                  failure={failures.get(rowBatchKey(row))}
-                  onToggle={(checked) => toggleRow(row, checked)}
-                  onApprove={() => setApproving(row)}
-                  onRevoke={setRevoking}
-                />
-              ))}
-            </ul>
+            {filteredRows.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                <span>Ninguna versión coincide con los filtros.</span>
+                <Button size="sm" variant="ghost" onClick={clearFilters}>
+                  Limpiar filtros
+                </Button>
+              </div>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                {visible.items.map((row) => (
+                  <VersionRow
+                    key={`${row.migration_id}-${row.direction}`}
+                    modelId={modelId}
+                    row={row}
+                    canApprove={approveGuard.allowed}
+                    selected={isRowSelected(selection, row)}
+                    selectionStale={isSelectionStale(selection, row)}
+                    selectionFull={isSelectionFull(selection)}
+                    blockText={blockTextFor(row, admin?.id)}
+                    failure={failures.get(rowBatchKey(row))}
+                    onToggle={(checked) => toggleRow(row, checked)}
+                    onApprove={() => setApproving(row)}
+                    onRevoke={setRevoking}
+                    onOpenVersion={onOpenVersion}
+                  />
+                ))}
+              </ul>
+            )}
+            {/* Sin paginador mientras todo entra en la página más chica: «Página 1 de 1» no informa
+                nada y ocupa una línea. */}
+            {visible.total > SMALLEST_VERSION_PAGE_SIZE && (
+              <Pagination
+                page={visible.page}
+                pages={visible.pages}
+                total={visible.total}
+                size={pageSize}
+                hasPrev={visible.page > 1}
+                hasNext={visible.page < visible.pages}
+                onPageChange={setPage}
+                onSizeChange={(size) => {
+                  setPageSize(size)
+                  setPage(1)
+                }}
+                sizeOptions={VERSION_PAGE_SIZE_OPTIONS}
+              />
+            )}
+            {hasActiveFilters && filteredRows.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Mostrando {filteredRows.length} de {rows.length} versiones.{' '}
+                <Button size="sm" variant="ghost" onClick={clearFilters}>
+                  Limpiar filtros
+                </Button>
+              </p>
+            )}
           </>
         )}
       </CardContent>
@@ -288,7 +378,95 @@ function blockTextFor(row: DestructiveVersion, adminId: number | undefined): str
   return reason === null ? null : batchBlockText(reason)
 }
 
+interface VersionFilterBarProps {
+  filters: DestructiveVersionFilters
+  counts: Record<ApprovalStatusFilter, number>
+  onStatusChange: (status: ApprovalStatusFilter) => void
+  onQueryChange: (query: string) => void
+}
+
+/**
+ * Filtro por estado (con el conteo de cada uno, para saber cuántas esperan aprobación sin tener que
+ * filtrar) y búsqueda por versión o persona. Ambos se aplican al instante: es un filtro en memoria
+ * sobre decenas de filas, no hay petición que amortiguar.
+ */
+function VersionFilterBar({
+  filters,
+  counts,
+  onStatusChange,
+  onQueryChange,
+}: VersionFilterBarProps) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+        {APPROVAL_STATUS_FILTERS.map((option) => {
+          const active = filters.status === option.value
+          return (
+            <Button
+              key={option.value}
+              type="button"
+              size="sm"
+              variant={active ? 'outline' : 'ghost'}
+              aria-pressed={active}
+              className={cn(active && 'border-primary text-primary')}
+              onClick={() => onStatusChange(option.value)}
+            >
+              {option.label} ({counts[option.value]})
+            </Button>
+          )
+        })}
+      </div>
+      <div className="sm:w-80">
+        <Input
+          type="search"
+          label="Buscar"
+          value={filters.query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Versión, nombre o usuario"
+          hint="Usuario: quien la creó, editó el SQL, aprobó o revocó."
+        />
+      </div>
+    </div>
+  )
+}
+
+/** Usuario de una persona registrada, o «desconocido» si el snapshot no lo trae. */
+function actorName(actor: ActorRef | null | undefined): string {
+  return actor?.username ?? 'desconocido'
+}
+
+/**
+ * Quién creó la versión y quién tocó el SQL por última vez. Son las dos personas que la regla de
+ * cuatro ojos excluye de aprobar, así que es lo primero que hay que ver para saber a quién pedírsela.
+ * Si son la misma persona se dice una vez. `author_unknown`: versión anterior al registro de autoría,
+ * sin último editor con qué comparar.
+ */
+function AuthorshipLine({ row }: { row: DestructiveVersion }) {
+  const author = actorName(row.author)
+  const editor = actorName(row.last_sql_editor)
+  const sameAuthorAndEditor =
+    row.author.admin_id !== null &&
+    row.author.admin_id !== undefined &&
+    row.author.admin_id === row.last_sql_editor.admin_id
+  return (
+    <p className="text-xs text-muted-foreground">
+      Creada por <strong className="text-foreground">{author}</strong>
+      {row.author_unknown ? (
+        ' · último editor del SQL sin registrar (versión anterior al registro de autoría)'
+      ) : sameAuthorAndEditor ? (
+        ', que también editó el SQL por última vez'
+      ) : (
+        <>
+          {' '}
+          · último cambio del SQL por <strong className="text-foreground">{editor}</strong>
+        </>
+      )}
+    </p>
+  )
+}
+
 interface VersionRowProps {
+  modelId: number
   row: DestructiveVersion
   canApprove: boolean
   selected: boolean
@@ -303,9 +481,11 @@ interface VersionRowProps {
   onToggle: (checked: boolean) => void
   onApprove: () => void
   onRevoke: (approval: DestructiveApproval) => void
+  onOpenVersion?: (version: string) => void
 }
 
 function VersionRow({
+  modelId,
   row,
   canApprove,
   selected,
@@ -316,6 +496,7 @@ function VersionRow({
   onToggle,
   onApprove,
   onRevoke,
+  onOpenVersion,
 }: VersionRowProps) {
   const liveApprovals = row.approvals.filter((approval) => approval.is_live)
   const reasons = Object.entries(row.reasons_by_engine)
@@ -337,8 +518,19 @@ function VersionRow({
               onChange={(event) => onToggle(event.target.checked)}
             />
           )}
-          <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs">{row.version}</code>
-          <span className="text-sm font-medium text-foreground">{row.name}</span>
+          {/* Enlace real (y no solo un clic): se puede abrir en otra pestaña o copiar, como el resto
+              de los enlaces a una versión. */}
+          <Link
+            to={`/database-models/${modelId}/migrations?version=${encodeURIComponent(row.version)}`}
+            onClick={() => onOpenVersion?.(row.version)}
+            className="group flex items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title="Ver la versión completa"
+          >
+            <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs">{row.version}</code>
+            <span className="text-sm font-medium text-foreground group-hover:text-primary group-hover:underline">
+              {row.name}
+            </span>
+          </Link>
           <Badge tone="neutral">{directionLabel(row.direction)}</Badge>
           <Badge tone={approvalStatusTone(row.approval_status)}>
             {approvalStatusLabel(row.approval_status)}
@@ -350,6 +542,8 @@ function VersionRow({
           </Button>
         )}
       </div>
+
+      <AuthorshipLine row={row} />
 
       {reasons.length > 0 && (
         <p className="text-xs text-muted-foreground">

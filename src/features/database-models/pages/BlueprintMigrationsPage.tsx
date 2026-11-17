@@ -504,8 +504,14 @@ export function BlueprintMigrationsPage() {
       ) : tab === 'aprobaciones' ? (
         /* Pestaña propia: aprobar vale para TODAS las bases protegidas del blueprint (alcance
            `blueprint`, incluidas las futuras). La aprobación de UNA base se hace desde la ficha de
-           esa base, que usa el mismo panel con alcance `database`. */
-        <DestructiveApprovalsPanel modelId={modelId} modelName={model.data.name} />
+           esa base, que usa el mismo panel con alcance `database`. El enlace de cada versión navega
+           a `?version=` sin `tab` (vuelve a «Versiones») y además la selecciona con
+           `selectVersion`, por el mismo motivo que en «Buscar en el SQL». */
+        <DestructiveApprovalsPanel
+          modelId={modelId}
+          modelName={model.data.name}
+          onOpenVersion={selectVersion}
+        />
       ) : tab === 'buscar' ? (
         /* El enlace del visor navega a `?version=` en esta MISMA ruta, y la página solo lee ese
            parámetro al montar: por eso además se selecciona a mano con `selectVersion`, que salta

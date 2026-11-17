@@ -240,7 +240,9 @@ describe('DestructiveApprovalsPanel — aprobar en lote', () => {
         `${APPROVAL_BATCH_MAX_ITEMS} seleccionadas (tope de ${APPROVAL_BATCH_MAX_ITEMS} por lote)`,
       ),
     ).toBeInTheDocument()
-    // La fila 101 no se puede marcar mientras el lote esté lleno.
+    // La fila 101 no se puede marcar mientras el lote esté lleno. Está en otra página de la lista,
+    // así que se la trae con la búsqueda: filtrar no toca la selección ya hecha.
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar' }), '0101')
     expect(screen.getByRole('checkbox', { name: /versión 0101/ })).toBeDisabled()
   })
 
