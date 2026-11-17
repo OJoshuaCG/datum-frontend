@@ -229,6 +229,33 @@ const NAV_ITEMS: NavItem[] = [
   },
 ]
 
+/**
+ * Secciones del menú. Agrupan por la pregunta que el usuario se hace («¿dónde están mis
+ * servidores?», «¿quién puede entrar?»), no por orden de alta. Solo cambia el orden visual: las
+ * entradas, sus rutas y su visibilidad por capacidad siguen en `NAV_ITEMS`. Una entrada que no
+ * figure aquí cae en una sección final sin título, así que olvidarla nunca la esconde.
+ */
+const NAV_SECTIONS: ReadonlyArray<{ title: string; paths: readonly string[] }> = [
+  {
+    title: 'Infraestructura',
+    paths: ['/servers', '/server-users', '/managed-databases', '/permission-profiles'],
+  },
+  {
+    title: 'Datos y esquemas',
+    paths: [
+      '/database-models',
+      '/schema-comparisons',
+      '/database-clones',
+      '/collation-conversions',
+      '/sql-console',
+    ],
+  },
+  {
+    title: 'Acceso',
+    paths: ['/gateway-users', '/api-tokens', '/integration-tokens', '/audit-log', '/admin'],
+  },
+]
+
 interface SidebarProps {
   onNavigate?: () => void
   /** Modo comprimido: solo iconos (desktop). */
@@ -242,6 +269,15 @@ const brandIcon = <BrandLogo variant="icon" className="h-8" />
 export function Sidebar({ onNavigate, collapsed = false, onToggleCollapse }: SidebarProps) {
   const { can } = useCapabilities()
   const items = NAV_ITEMS.filter((item) => !item.anyOf || item.anyOf.some(can))
+  const groupedPaths = new Set(NAV_SECTIONS.flatMap((section) => section.paths))
+  const sections: Array<{ title?: string; items: NavItem[] }> = NAV_SECTIONS.map((section) => ({
+    title: section.title,
+    items: section.paths.flatMap((path) => items.filter((item) => item.to === path)),
+  }))
+  const ungroupedItems = items.filter((item) => !groupedPaths.has(item.to))
+  if (ungroupedItems.length > 0) sections.push({ items: ungroupedItems })
+  // Un grupo sin entradas visibles (por capacidades) no deja ni su título.
+  const visibleSections = sections.filter((section) => section.items.length > 0)
   return (
     <nav
       className={cn('flex h-full flex-col gap-1', collapsed ? 'p-3' : 'p-4')}
@@ -292,26 +328,39 @@ export function Sidebar({ onNavigate, collapsed = false, onToggleCollapse }: Sid
           </>
         )}
       </div>
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          onClick={onNavigate}
-          title={collapsed ? item.label : undefined}
-          aria-label={collapsed ? item.label : undefined}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2',
-              isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground',
-            )
-          }
-        >
-          {item.icon}
-          {!collapsed && item.label}
-        </NavLink>
+      {visibleSections.map((section, sectionIndex) => (
+        <div key={section.title ?? 'otros'} className="flex flex-col gap-1">
+          {section.title &&
+            (collapsed ? (
+              // Comprimido no hay lugar para el título: una línea separa los grupos.
+              sectionIndex > 0 && <hr className="my-2 border-border" aria-hidden />
+            ) : (
+              <p className="mt-3 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {section.title}
+              </p>
+            ))}
+          {section.items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={onNavigate}
+              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground',
+                )
+              }
+            >
+              {item.icon}
+              {!collapsed && item.label}
+            </NavLink>
+          ))}
+        </div>
       ))}
     </nav>
   )
