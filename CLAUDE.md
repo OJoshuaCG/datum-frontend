@@ -59,33 +59,39 @@ pública de la feature, y lo que carga el router en modo lazy). Compartido en `s
   en el mismo PR**. Si cambias un flujo, actualiza su documento.
 - Commits: `tipo(alcance): descripción` en español, con cuerpo que explique el *porqué*.
 
-**Botones — icono vs. texto.** Usa `IconButton` (exige `label`, que pone `aria-label` y tooltip)
-**solo** cuando la acción se repite —filas de tabla, barras— **y** es universalmente reconocible:
-editar, eliminar, actualizar, copiar, navegar, ver/ocultar. Conserva el texto en las acciones de
-dominio («Adoptar», «Reconciliar», «Aplicar a todas 🔌»), en los botones primarios de página, en
-las confirmaciones destructivas finales y cuando el texto lleva un contador. Color: rojo solo en
-dos intensidades — `danger-soft` para eliminar en fila, `danger` para la confirmación final; el
-resto `ghost` u `outline`. En filas usa `size="icon-sm"`, que comparte alto y relleno con `sm`.
-Iconos, siempre del set compartido `components/ui/icons.tsx`. **Ningún hover de un control puede
-usar `bg-surface-muted`**: ese es el tinte con el que las filas de tabla se resaltan, y un botón
-que lo repita se vuelve invisible dentro de una fila apuntada. Los controles se resaltan con
-tinte de acento (`bg-primary/10`), que es otro tono y por eso nunca colisiona.
+**Convenciones de UI: `docs/ui-conventions.md` (léelo antes de crear o cambiar una pantalla).**
+Es el documento normativo de botones, enlaces, acciones por fila, controles deshabilitados,
+acciones destructivas, tablas, estados de pantalla, colapsables, copy, tests y checklist de cierre.
+Resumen de lo que más se rompe:
 
-**Tablas — sin scroll horizontal.** Ninguna tabla (`DataTable`) puede depender de scroll
-horizontal para mostrar sus columnas, salvo un caso extraordinario justificado y documentado
-en el propio componente. `DataTable` ya resuelve esto por debajo de `md` con una tarjeta por
-fila (ver `docs/ui-components.md`); no lo evadas armando una tabla propia fuera de ese
-componente para una vista nueva.
+- **Botones:** siempre `Button`, `IconButton`, `TabButton` o `RowActionButton`. `<button>` crudo
+  está prohibido por ESLint (`no-restricted-syntax`) fuera de `components/ui`; las excepciones
+  legítimas (chips, disclosures, filas clicables) están listadas con su motivo en
+  `eslint.config.js`. Un enlace con aspecto de botón usa `buttonClassName(...)`, nunca clases
+  copiadas.
+- **Icono vs. texto:** `IconButton` (exige `label`) **solo** si la acción se repite **y** es
+  universalmente reconocible (editar, eliminar, actualizar, copiar, navegar, ver/ocultar). Las
+  acciones de dominio («Adoptar», «Reconciliar», «Aplicar a todas 🔌»), los botones primarios, las
+  confirmaciones destructivas finales y los que llevan contador conservan el texto. Iconos solo de
+  `components/ui/icons.tsx`.
+- **Color:** rojo en dos intensidades — `danger-soft` en filas y en el botón que abre un diálogo
+  destructivo, `danger` solo en la confirmación final. El resto `ghost` u `outline`. Ningún hover
+  de un control usa `bg-surface-muted` (es el tinte de la fila); se resaltan con `bg-primary/10`.
+- **Filas:** máximo 3 acciones visibles; las ocasionales van a `ActionMenu`, nunca la destructiva.
+- **Deshabilitados:** el motivo va visible y enlazado con `aria-describedby`;
+  `Button.disabledReason` es solo un tooltip y no basta.
 
-⚠️ **Ruido de fin de línea:** el árbol de trabajo tiene decenas de archivos marcados como
-modificados que solo cambian CRLF↔LF, sin cambio real de contenido. Antes de commitear, comprueba
-qué cambió de verdad (`git diff --ignore-cr-at-eol -- <archivo>`) y no arrastres ese ruido.
+⚠️ **Fin de línea:** `.gitattributes` fuerza LF en el repositorio (`* text=auto eol=lf`), así que
+un diff con cambios solo de CRLF↔LF no debería aparecer. Si aparece, comprueba qué cambió de verdad
+(`git diff --ignore-cr-at-eol -- <archivo>`) y no lo arrastres al commit. Al editar, conserva el
+fin de línea que ya tiene el archivo.
 
 ## Documentación: consúltala, no la memorices
 
 `docs/` describe el estado real del código. Entra al que toque en lugar de cargarlo todo:
 
-`maintenance.md` (convenciones y recetas — **el primero a leer para ampliar algo**) ·
+`ui-conventions.md` (**reglas normativas de UI: el primero a leer antes de tocar una pantalla**) ·
+`maintenance.md` (convenciones y recetas para ampliar algo) ·
 `architecture.md` (capas y carpetas) · `data-flow.md` (recorrido de una request) ·
 `api-coverage.md` (endpoint → pantalla) · `sql-console.md` (consola SQL: identidad de
 ejecución y ciclo del `confirm_token`) · `database-export.md` (exportación de bases: los dos

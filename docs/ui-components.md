@@ -5,6 +5,9 @@ Son **presentacionales y sin lógica de negocio**: reciben datos y callbacks por
 Todos consumen tokens de color (ver [`theming.md`](theming.md)) y cuidan accesibilidad
 (foco visible, ARIA).
 
+> Las **reglas de uso** (cuándo icono o texto, severidad, filas, deshabilitados, tablas, tests) están
+> en [`ui-conventions.md`](ui-conventions.md). Este catálogo solo describe cada componente.
+
 > Regla: si un componente sirve a varias features → vive aquí. Si es específico de una
 > feature → en `src/features/<f>/components/`.
 
@@ -17,6 +20,9 @@ Botón con variantes y estado de carga. **No** usa neumorphism (rompería el con
   `danger-soft`), `size` (`sm` | `md` | `lg` | `icon`), `isLoading`, + atributos nativos de
   `<button>`.
 - `isLoading` deshabilita y muestra `Spinner`.
+- `disabledReason` es **solo un tooltip nativo** (`title`): no llega por teclado ni en táctil y no es
+  una descripción accesible. El motivo va además visible y enlazado con `aria-describedby`
+  ([`ui-conventions.md`](ui-conventions.md) §4).
 
 ```tsx
 <Button variant="danger" isLoading={mutation.isPending} onClick={…}>Eliminar</Button>
@@ -140,7 +146,7 @@ Menú de disclosure (`role="menu"`) para las acciones de uso ocasional de una fi
 - **Complemento, no reemplazo.** Las acciones de dominio («Adoptar», «Aprovisionar»…) y la destructiva siguen como botones visibles; el menú nunca las esconde.
 - **Cada ítem hace lo que hacía su botón.** Un ítem bloqueado se queda en el menú, deshabilitado y con `disabledReason` como tooltip: no desaparece.
 - **Teclado:** el foco entra al primer ítem habilitado; flechas, `Inicio`/`Fin` se mueven (omiten lo deshabilitado); `Esc` cierra y devuelve el foco al disparador; `Tab` y el clic fuera cierran.
-- **Uso actual:** `DatabaseRowActions` (`managed-databases`). Una fila con más de 4 acciones manda al menú Reasignar, Acceso de agentes, Comparar, Clonar y Exportar; con 4 o menos conserva todo a la vista. Y `IdentityActionButtons` en `layout="row"` (usuarios del motor): con más de 3 acciones manda Revelar y Rotar contraseña al menú; la ficha (`layout="header"`) nunca usa menú.
+- **Uso actual:** `BlueprintsPanel` (fila del catálogo: «Ver BDs» y «Collation» van al menú; «Versiones», «Editar» y «Eliminar» siguen visibles) y `BlueprintMigrationsPage` (cabecera: «Lotes de collation» al menú; «Nueva versión», «Aplicar… 🔌», «Editar» y «Eliminar» visibles). `DatabaseRowActions` (`managed-databases`). Una fila con más de 4 acciones manda al menú Reasignar, Acceso de agentes, Comparar, Clonar y Exportar; con 4 o menos conserva todo a la vista. Y `IdentityActionButtons` en `layout="row"` (usuarios del motor): con más de 3 acciones manda Revelar y Rotar contraseña al menú; la ficha (`layout="header"`) nunca usa menú.
 - El disparador pide un `label` que nombra la fila («Más acciones de «ventas»»): con varias filas, sin ese contexto el lector de pantalla repite lo mismo.
 
 ## Datos y estados
@@ -490,6 +496,12 @@ para que se reinicie cuando la URL cambia desde afuera (sin `setState` en efecto
 `action` como botones `aria-pressed` que aplican al toque; «Tipo de actor» y «Estado» son
 `<select>` nativos; «Desde»/«Hasta» son `datetime-local` en hora local que viajan en UTC. Un rango
 invertido marca el error en «Hasta» y deshabilita «Aplicar filtros».
+
+**Filtros avanzados colapsables.** Presets, «Acción», «Limpiar» y «Aplicar filtros» están siempre
+visibles. «Tipo de actor», «Usuario», «Estado», «Desde», «Hasta» y «Request ID» viven bajo el botón
+«Más filtros (N activo/s)» (`aria-expanded`/`aria-controls`). La sección arranca abierta si hay un
+filtro avanzado en la URL o el rango es inválido, y se oculta con `hidden` (los inputs siguen
+montados, el borrador no se pierde).
 
 ### `AuditEntryDetailModal`
 Detalle de una entrada (`Modal` `lg`, montado condicionalmente con `key`). Props: `entryId`,

@@ -13,8 +13,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
   isLoading?: boolean
   /**
-   * Motivo por el que el botón está deshabilitado. Se muestra como tooltip nativo y se asocia
-   * como descripción accesible, porque un botón gris sin explicación obliga a adivinar qué falta.
+   * Motivo por el que el botón está deshabilitado. Se muestra SOLO como tooltip nativo (`title`):
+   * NO es una descripción accesible, y el tooltip de un botón `disabled` no llega por teclado ni
+   * en táctil. Es un complemento para quien usa puntero: el motivo tiene que estar además
+   * VISIBLE junto al control, enlazado con `aria-describedby` (ver `docs/ui-conventions.md` §4).
    * Solo se usa mientras el botón está deshabilitado por `disabled`; el estado de carga no lo necesita.
    */
   disabledReason?: string
