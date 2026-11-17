@@ -30,8 +30,8 @@ const tokenRow = {
 }
 
 describe('vocabulario de scopes de integración', () => {
-  it('son 12 scopes y cada uno tiene un tier conocido', () => {
-    expect(INTEGRATION_SCOPES).toHaveLength(12)
+  it('son 13 scopes y cada uno tiene un tier conocido', () => {
+    expect(INTEGRATION_SCOPES).toHaveLength(13)
     for (const scope of INTEGRATION_SCOPES) {
       expect(INTEGRATION_SCOPE_TIERS).toContain(INTEGRATION_SCOPE_TIER_BY_SCOPE[scope])
     }
