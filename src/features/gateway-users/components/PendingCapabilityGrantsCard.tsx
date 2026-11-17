@@ -129,7 +129,9 @@ function GrantRowActions({ grant, subject, blockedId, onDecide }: GrantRowAction
         onChange={(event) => selection.toggle(grant.id, event.target.checked)}
       />
       {/* Acciones de dominio: conservan el texto. El nombre accesible dice QUÉ y de QUIÉN porque
-          hay un par de botones por fila. */}
+          hay un par de botones por fila. «Rechazar» cierra la solicitud para siempre (hay que volver
+          a pedirla) y su diálogo ya es `danger`: en la fila va en `danger-soft`, como «Revocar»;
+          el rojo pleno queda para la confirmación. */}
       <div className="flex flex-wrap items-center gap-1">
         <Button
           type="button"
@@ -144,7 +146,7 @@ function GrantRowActions({ grant, subject, blockedId, onDecide }: GrantRowAction
         </Button>
         <Button
           type="button"
-          variant="ghost"
+          variant="danger-soft"
           size="sm"
           disabled={disabled}
           aria-describedby={blocked ? blockedId : undefined}
@@ -502,7 +504,7 @@ export function PendingCapabilityGrantsCard() {
                     </Button>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="danger-soft"
                       size="sm"
                       disabled={bulk.isPending || overLimit}
                       onClick={() => openBulk('reject')}

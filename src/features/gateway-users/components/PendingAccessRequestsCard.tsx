@@ -274,7 +274,9 @@ export function PendingAccessRequestsCard({ focusId = null }: PendingAccessReque
           return (
             <div className="flex flex-col items-start gap-2">
               {/* Acciones de dominio: conservan el texto. El nombre accesible dice de QUIÉN porque
-                  hay varios botones por fila. */}
+                  hay varios botones por fila. «Rechazar» y «Cancelar» cierran la solicitud para
+                  siempre (hay que volver a pedirla) y su diálogo ya es `danger`: en la fila van
+                  en `danger-soft`, como «Revocar»; el rojo pleno queda para la confirmación. */}
               <div className="flex flex-wrap items-center gap-1">
                 <Button
                   type="button"
@@ -289,7 +291,7 @@ export function PendingAccessRequestsCard({ focusId = null }: PendingAccessReque
                 </Button>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="danger-soft"
                   size="sm"
                   disabled={!request.can_decide}
                   aria-describedby={blocked ? blockedId : undefined}
@@ -301,7 +303,7 @@ export function PendingAccessRequestsCard({ focusId = null }: PendingAccessReque
                 {own && (
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="danger-soft"
                     size="sm"
                     aria-label={`Cancelar: ${subject}`}
                     onClick={() => open({ kind: 'cancel', request })}
