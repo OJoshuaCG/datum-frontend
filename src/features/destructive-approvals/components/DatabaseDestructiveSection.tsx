@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Button, Callout, Card, CardContent } from '@/components/ui'
 import {
   useApplyMigrations,
@@ -11,6 +11,10 @@ import { DestructiveConfirmDialog } from './DestructiveConfirmDialog'
 import { DestructivePlanCard } from './DestructivePlanCard'
 
 type PlanKind = 'apply' | 'rollback'
+
+/** Sin versión aplicada no hay a qué volver, y el botón de rollback queda apagado por eso. */
+const NO_VERSION_REASON =
+  'No se puede planificar un rollback: la base no tiene ninguna versión aplicada.'
 
 interface PlannedOperation {
   kind: PlanKind
@@ -48,6 +52,7 @@ export function DatabaseDestructiveSection({
   rollbackTarget,
   blockedReason,
 }: DatabaseDestructiveSectionProps) {
+  const noVersionReasonId = useId()
   const apply = useApplyMigrations(databaseId)
   const rollback = useRollbackMigration(databaseId)
   const [operation, setOperation] = useState<PlannedOperation | null>(null)
@@ -174,12 +179,19 @@ export function DatabaseDestructiveSection({
             size="sm"
             isLoading={rollback.isPending && rollback.variables?.dryRun === true}
             disabled={isBusy || blockedReason !== null || currentVersion === null}
+            disabledReason={currentVersion === null ? NO_VERSION_REASON : undefined}
+            aria-describedby={currentVersion === null ? noVersionReasonId : undefined}
             onClick={planRollback}
           >
             Planificar rollback
           </Button>
         </div>
         {blockedReason && <p className="text-xs text-error">{blockedReason}</p>}
+        {currentVersion === null && (
+          <p id={noVersionReasonId} className="text-xs text-muted-foreground">
+            {NO_VERSION_REASON}
+          </p>
+        )}
 
         {noPlanKind && (
           <p className="text-xs text-muted-foreground">
