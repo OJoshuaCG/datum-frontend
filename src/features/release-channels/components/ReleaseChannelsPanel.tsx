@@ -178,7 +178,7 @@ export function ReleaseChannelsPanel() {
               emptyState={
                 <EmptyState
                   title="Todavía no hay canales de liberación."
-                  description="Sin canales, las integraciones solo pueden pedir la última versión de cada blueprint."
+                  description="Un canal fija qué versión de cada blueprint lee una integración con el scope blueprint.read_channel. Sin canales, solo puede pedir la última versión."
                 />
               }
             />
