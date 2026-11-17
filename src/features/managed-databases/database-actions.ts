@@ -123,11 +123,25 @@ export const DOMAIN_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseAct
   'adopt',
 ])
 
-/** Acciones destructivas: siempre al final y nunca más de una por fila. */
-export const DESTRUCTIVE_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseActionId>([
+const DESTRUCTIVE_ACTION_IDS = [
   'remove-from-inventory',
   'drop-from-engine',
-])
+] as const satisfies readonly DatabaseActionId[]
+
+/**
+ * Id de una acción destructiva. Sale de la misma lista que `DESTRUCTIVE_ACTIONS`: una destructiva
+ * nueva obliga a darle su descripción en la zona de peligro, o no compila.
+ */
+export type DestructiveActionId = (typeof DESTRUCTIVE_ACTION_IDS)[number]
+
+/** Acciones destructivas: siempre al final y nunca más de una por fila. */
+export const DESTRUCTIVE_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseActionId>(
+  DESTRUCTIVE_ACTION_IDS,
+)
+
+export function isDestructiveAction(action: DatabaseActionId): action is DestructiveActionId {
+  return DESTRUCTIVE_ACTIONS.has(action)
+}
 
 /**
  * Acciones que en la ficha son una PESTAÑA y no un botón de la cabecera. Siguen contando para R1

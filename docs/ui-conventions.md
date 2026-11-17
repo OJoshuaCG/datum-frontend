@@ -71,6 +71,17 @@ Antes de escribir un control o una vista, recorré esto en orden:
 - Contenedor de acciones de una fila: `flex flex-wrap`. En la tarjeta de `< md` seis botones no
   caben y la destructiva quedaría fuera de pantalla.
 
+### Cabecera de una ficha
+
+- La cabecera de una ficha también respeta el **máximo de 3 controles**. Si las acciones caben,
+  van todas a la vista; si no, quedan las de dominio y las dos o tres que el operador viene a
+  buscar, y el resto pasa a un `ActionMenu` con `triggerText` («Gestionar»), nunca a un «⋯» suelto.
+- Las **destructivas no van en la cabecera** de una ficha: van en una **«Zona de peligro»** al pie
+  de la pestaña de resumen, cada una con una línea que dice qué provoca y su botón `danger-soft`.
+  Siguen visibles (no se esconden en un menú) y la ficha sigue teniendo todas las acciones.
+- Referencia: `DatabaseHeaderActions` y `DatabaseDangerZone` en
+  `features/managed-databases/components/DatabaseRowActions.tsx`.
+
 ## 4. Controles deshabilitados **[revisión]**
 
 - El **motivo** de un control deshabilitado va **visible**, en texto, junto al control, y el

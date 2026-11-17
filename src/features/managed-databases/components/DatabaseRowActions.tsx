@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ActionMenu,
@@ -12,7 +12,6 @@ import {
   type ButtonVariant,
 } from '@/components/ui'
 import { useCapabilities } from '@/features/auth'
-import { cn } from '@/lib/utils'
 import { CAPABILITIES, type ManagedDatabaseOut, type ServerOut } from '@/lib/contracts'
 import { serverDatabasePath } from '@/lib/routes'
 import { DropDatabaseDialog } from '@/features/server-databases/components/DropDatabaseDialog'
@@ -23,9 +22,11 @@ import {
   DETAIL_TAB_ACTIONS,
   DOMAIN_ACTIONS,
   getDatabaseActions,
+  isDestructiveAction,
   type DatabaseActionId,
   type DatabaseActionSurface,
   type DatabaseState,
+  type DestructiveActionId,
 } from '../database-actions'
 import { AdoptDatabaseModal } from './AdoptDatabaseModal'
 import { AgentAccessModal } from './AgentAccessModal'
@@ -57,7 +58,8 @@ import { ReassignOwnerModal } from './ReassignOwnerModal'
  *
  * **Cómo se amplía:** una acción nueva es su id y su etiqueta en `database-actions.ts` (y en qué
  * estados aparece), más su presentación y su diálogo o destino AQUÍ. Ninguna página toca nada:
- * todas pintan `DatabaseRowActions`/`DatabaseHeaderActions` y montan una vez `DatabaseActionDialogs`.
+ * todas pintan `DatabaseRowActions`/`DatabaseHeaderActions`/`DatabaseDangerZone` y montan una vez
+ * `DatabaseActionDialogs`.
  *
  * Los diálogos se montan una vez por página y no dentro de cada fila por dos motivos: `DataTable`
  * pinta cada celda dos veces (tabla y tarjeta bajo `md`), y una mutación que saca la fila del
@@ -85,9 +87,6 @@ export interface PendingDatabaseAction {
   surface: DatabaseActionSurface
 }
 
-/** Grupo de la cabecera de la ficha. Las filas no agrupan: ordenan por zonas (`rowZone`). */
-type HeaderGroup = 'state' | 'operate' | 'record' | 'destructive'
-
 interface ActionPresentation {
   icon?: ReactNode
   /**
@@ -105,38 +104,55 @@ interface ActionPresentation {
   cardText?: boolean
   /** Texto más corto para la fila, cuando la etiqueta completa la alargaría en cada base. */
   rowText?: string
-  group: HeaderGroup
 }
 
 const PRESENTATION: Record<DatabaseActionId, ActionPresentation> = {
-  provision: { row: 'text', group: 'state' },
-  recreate: { row: 'text', group: 'state' },
-  adopt: { row: 'text', group: 'state' },
-  edit: { icon: <PencilIcon />, row: 'icon', group: 'record' },
-  reassign: { row: 'text', rowText: 'Reasignar', group: 'record' },
+  provision: { row: 'text' },
+  recreate: { row: 'text' },
+  adopt: { row: 'text' },
+  edit: { icon: <PencilIcon />, row: 'icon' },
+  reassign: { row: 'text', rowText: 'Reasignar' },
   // Acción de dominio: con texto, no icono. `rowText` corto porque se repite en cada fila.
-  'agent-access': { row: 'text', rowText: 'Agentes', group: 'record' },
-  // En la ficha es una pestaña (`DETAIL_TAB_ACTIONS`): su grupo no llega a pintarse.
-  migrations: { row: 'text', group: 'operate' },
-  compare: { icon: <CompareIcon />, row: 'icon', cardText: true, group: 'operate' },
-  clone: { icon: <CloneIcon />, row: 'icon', cardText: true, group: 'operate' },
-  export: { row: 'text', group: 'operate' },
+  'agent-access': { row: 'text', rowText: 'Agentes' },
+  // En la ficha es una pestaña (`DETAIL_TAB_ACTIONS`), no un botón de la cabecera.
+  migrations: { row: 'text' },
+  compare: { icon: <CompareIcon />, row: 'icon', cardText: true },
+  clone: { icon: <CloneIcon />, row: 'icon', cardText: true },
+  export: { row: 'text' },
   'remove-from-inventory': {
     icon: <ListRemoveIcon />,
     row: 'icon',
     cardText: true,
-    group: 'destructive',
   },
-  'drop-from-engine': { icon: <TrashIcon />, row: 'icon', group: 'destructive' },
+  'drop-from-engine': { icon: <TrashIcon />, row: 'icon' },
 }
 
-/** Grupos de la cabecera, en orden, con el nombre que anuncia el lector de pantalla. */
-const HEADER_GROUPS: { id: HeaderGroup; label: string }[] = [
-  { id: 'state', label: 'Estado' },
-  { id: 'operate', label: 'Operar' },
-  { id: 'record', label: 'Registro' },
-  { id: 'destructive', label: 'Destructivas' },
-]
+/**
+ * Máximo de controles visibles en la cabecera de la ficha (`docs/ui-conventions.md` §3). Con más,
+ * las acciones ocasionales pasan al menú «Gestionar».
+ */
+const HEADER_VISIBLE_ACTION_LIMIT = 3
+
+/**
+ * Las que se quedan a la vista cuando la cabecera tiene que plegar: operaciones sobre el contenido
+ * que el operador va a buscar a la ficha. Las de dominio (Aprovisionar, Recrear, Adoptar) también
+ * quedan siempre visibles: son la salida del estado en que está la base.
+ */
+const HEADER_PINNED_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseActionId>([
+  'compare',
+  'clone',
+])
+
+/**
+ * Qué dice cada destructiva en la zona de peligro. Nombra la consecuencia (R5): quien está por
+ * hacer clic en una base de producción lee qué queda y qué se pierde antes de abrir el diálogo.
+ */
+const DANGER_ZONE_DESCRIPTIONS: Record<DestructiveActionId, string> = {
+  'remove-from-inventory':
+    'El gateway deja de gestionarla. La base y sus datos siguen en el motor.',
+  'drop-from-engine':
+    'Ejecuta DROP DATABASE en el servidor: borra la base y todos sus datos. No se puede deshacer.',
+}
 
 /**
  * Zona de una acción en la fila: `[dominio con texto] [atajos con texto] [iconos] · [destructiva]`.
@@ -171,7 +187,7 @@ const ROW_OVERFLOW_ACTIONS: ReadonlySet<DatabaseActionId> = new Set<DatabaseActi
 
 /**
  * Rojo solo en dos intensidades: `danger-soft` para todo botón destructivo que ABRE un diálogo,
- * en fila o en la cabecera; `danger` queda para la confirmación final dentro del diálogo.
+ * en fila o en la zona de peligro; `danger` queda para la confirmación final dentro del diálogo.
  */
 function variantOf(action: DatabaseActionId, surface: DatabaseActionSurface): ButtonVariant {
   if (DESTRUCTIVE_ACTIONS.has(action)) return 'danger-soft'
@@ -285,13 +301,34 @@ export function DatabaseRowActions({
   )
 }
 
+/** Botón de una acción en la ficha (cabecera o zona de peligro): siempre con su texto completo. */
+function DetailActionButton({
+  action,
+  className,
+  onClick,
+}: {
+  action: DatabaseActionId
+  className?: string
+  onClick: () => void
+}) {
+  return (
+    <Button variant={variantOf(action, 'detail')} className={className} onClick={onClick}>
+      {PRESENTATION[action].icon}
+      {DATABASE_ACTION_LABELS[action]}
+    </Button>
+  )
+}
+
 /**
- * Acciones de la cabecera de la ficha: el superconjunto (R1), siempre con texto porque aquí no
- * se repiten. Las que son una pestaña de la ficha (`DETAIL_TAB_ACTIONS`) no se pintan como botón.
+ * Acciones de la cabecera de la ficha, siempre con texto porque aquí no se repiten. Las que son
+ * una pestaña de la ficha (`DETAIL_TAB_ACTIONS`) no se pintan como botón, y las destructivas
+ * tampoco: viven en `DatabaseDangerZone`. La ficha sigue teniendo TODAS las acciones (R1), solo
+ * cambia dónde está cada una.
  *
- * Van en grupos con nombre (`role="group"`): con ocho botones seguidos no había jerarquía, y la
- * salida del estado (Aprovisionar, Recrear) pesaba lo mismo que Exportar. Las destructivas van
- * aparte, separadas por un filete, para que nunca queden pegadas a una acción inocua.
+ * Como mucho tres controles (`HEADER_VISIBLE_ACTION_LIMIT`). Si las acciones caben, van todas a la
+ * vista; si no, quedan las de dominio y las fijadas (`HEADER_PINNED_ACTIONS`) y el resto pasa al
+ * menú «Gestionar». Antes eran hasta ocho botones con el mismo peso, con «Eliminar del motor 🔌»
+ * pegado al título de una base de producción.
  */
 export function DatabaseHeaderActions({
   target,
@@ -301,39 +338,92 @@ export function DatabaseHeaderActions({
   onAction: (pending: PendingDatabaseAction) => void
 }) {
   const actions = useActionsFor(target, 'detail').filter(
-    (action) => !DETAIL_TAB_ACTIONS.has(action),
+    (action) => !DETAIL_TAB_ACTIONS.has(action) && !DESTRUCTIVE_ACTIONS.has(action),
   )
   const run = useRunAction(onAction, 'detail')
 
+  const foldsIntoMenu = actions.length > HEADER_VISIBLE_ACTION_LIMIT
+  const isPinned = (action: DatabaseActionId) =>
+    DOMAIN_ACTIONS.has(action) || HEADER_PINNED_ACTIONS.has(action)
+  const visibleActions = foldsIntoMenu ? actions.filter(isPinned) : actions
+  const menuActions = foldsIntoMenu ? actions.filter((action) => !isPinned(action)) : []
+
   return (
     <>
-      {HEADER_GROUPS.map((group) => {
-        const inGroup = actions.filter((action) => PRESENTATION[action].group === group.id)
-        if (inGroup.length === 0) return null
-        return (
-          <div
-            key={group.id}
-            role="group"
-            aria-label={group.label}
-            className={cn(
-              'flex flex-wrap gap-2',
-              group.id === 'destructive' && 'sm:border-l sm:border-border sm:pl-3',
-            )}
-          >
-            {inGroup.map((action) => (
-              <Button
-                key={action}
-                variant={variantOf(action, 'detail')}
-                onClick={() => run(action, target)}
-              >
-                {PRESENTATION[action].icon}
-                {DATABASE_ACTION_LABELS[action]}
-              </Button>
-            ))}
-          </div>
-        )
-      })}
+      {visibleActions.map((action) => (
+        <DetailActionButton key={action} action={action} onClick={() => run(action, target)} />
+      ))}
+      {menuActions.length > 0 && (
+        <ActionMenu
+          label={`Gestionar «${target.name}»`}
+          triggerText="Gestionar"
+          items={menuActions.map((action) => ({
+            id: action,
+            label: DATABASE_ACTION_LABELS[action],
+            icon: PRESENTATION[action].icon,
+            onSelect: () => run(action, target),
+          }))}
+        />
+      )}
     </>
+  )
+}
+
+/**
+ * Zona de peligro de la ficha: las acciones destructivas, fuera de la cabecera, cada una con lo que
+ * provoca. Va al pie de «Resumen» (y de la ficha sin fila física). Si la base no tiene ninguna
+ * destructiva disponible, no se pinta.
+ *
+ * Los botones son `danger-soft` porque abren un diálogo; el rojo pleno queda para la confirmación
+ * final dentro de él.
+ */
+export function DatabaseDangerZone({
+  target,
+  onAction,
+}: {
+  target: DatabaseActionTarget
+  onAction: (pending: PendingDatabaseAction) => void
+}) {
+  const actions = useActionsFor(target, 'detail').filter(isDestructiveAction)
+  const run = useRunAction(onAction, 'detail')
+  const headingId = useId()
+
+  if (actions.length === 0) return null
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col rounded-card border border-error/40 bg-surface"
+    >
+      <h2
+        id={headingId}
+        className="border-b border-error/40 px-4 py-3 text-sm font-semibold text-error"
+      >
+        Zona de peligro
+      </h2>
+      <ul className="flex flex-col divide-y divide-border">
+        {actions.map((action) => (
+          <li
+            key={action}
+            className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm font-medium text-foreground">
+                {DATABASE_ACTION_LABELS[action]}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {DANGER_ZONE_DESCRIPTIONS[action]}
+              </span>
+            </div>
+            <DetailActionButton
+              action={action}
+              className="shrink-0 self-start sm:self-auto"
+              onClick={() => run(action, target)}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

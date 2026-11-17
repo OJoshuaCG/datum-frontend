@@ -26,6 +26,7 @@ import { AgentAccessBadge } from '@/features/managed-databases/components/AgentA
 import { ProvisionStatusBadge } from '@/features/managed-databases/components/ProvisionStatusBadge'
 import {
   DatabaseActionDialogs,
+  DatabaseDangerZone,
   DatabaseHeaderActions,
   type DatabaseActionTarget,
   type PendingDatabaseAction,
@@ -56,9 +57,10 @@ function isTab(value: string | null): value is Tab {
  * sin adoptar. Por eso se condicionan a `managed !== null` y, sin adoptar, ofrecen el CTA
  * «Adoptar» en vez de ocultarse del todo.
  *
- * **La cabecera tiene TODAS las acciones de la base (R1)**: es `DatabaseHeaderActions`, la misma
- * fuente que las filas de los listados, así que una acción que aparece en una fila no puede faltar
- * aquí. Ver `features/managed-databases/database-actions.ts`.
+ * **La ficha tiene TODAS las acciones de la base (R1)**: `DatabaseHeaderActions` (cabecera y menú
+ * «Gestionar») y `DatabaseDangerZone` (destructivas, al pie de «Resumen») salen de la misma fuente
+ * que las filas de los listados, así que una acción que aparece en una fila no puede faltar aquí.
+ * Ver `features/managed-databases/database-actions.ts`.
  *
  * La base puede estar en el inventario y NO en el motor. Eso no es «ya no existe»: si su registro
  * está en `pending`/`error` todavía no se creó (y se ofrece Aprovisionar); si estaba activa,
@@ -177,16 +179,21 @@ export function ServerDatabaseDetailPage() {
     <EnvironmentBadge state={resolveEnvironmentState(managed.environment_id, environmentMap)} />
   ) : null
 
+  // La zona de peligro va al pie del resumen y no en la cabecera: las destructivas quedan a un
+  // paso deliberado, junto a lo que dicen que hacen, en vez de al lado del título.
   const summary = (
-    <SummaryCard
-      name={database}
-      serverId={serverId}
-      engine={server.data.engine}
-      managed={managed}
-      owner={managed ? ownerOf(managed) : null}
-      modelName={managed ? modelNameOf(managed) : null}
-      environment={environment}
-    />
+    <>
+      <SummaryCard
+        name={database}
+        serverId={serverId}
+        engine={server.data.engine}
+        managed={managed}
+        owner={managed ? ownerOf(managed) : null}
+        modelName={managed ? modelNameOf(managed) : null}
+        environment={environment}
+      />
+      <DatabaseDangerZone target={target} onAction={setPendingAction} />
+    </>
   )
 
   return (
@@ -209,8 +216,8 @@ export function ServerDatabaseDetailPage() {
             <>
               <AdoptionBadge status="adopted" />
               <ProvisionStatusBadge status={managed.status} />
-              {/* Junto a las acciones y no solo en «Resumen», que no es la pestaña por defecto:
-                  es la etiqueta que dice «producción» al lado del «Eliminar del motor 🔌». */}
+              {/* Bajo el título y no solo en «Resumen», que no es la pestaña por defecto: quien
+                  llega a la ficha ve de entrada si la base es de producción. */}
               {environment}
               {/* Estado de agentes junto a las acciones: «Acceso de agentes» está en la cabecera
                   (R1) y el operador tiene que ver el resultado sin abrir el diálogo. */}
