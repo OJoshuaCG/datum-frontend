@@ -1,10 +1,15 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Badge, Button, Input, Modal, Textarea } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, Input, Modal, Textarea } from '@/components/ui'
 import type { BadgeTone } from '@/components/ui'
 import { useCapabilityGuard } from '@/features/auth'
-import { CAPABILITY_ESCALATIONS, type BatchAdoptStatus } from '@/lib/contracts'
+import {
+  CAPABILITY_ESCALATIONS,
+  type BatchAdoptResult,
+  type BatchAdoptStatus,
+} from '@/lib/contracts'
 import { useAdoptAllHosts } from '../hooks/use-engine-users'
 
 interface AdoptAllHostsModalProps {
@@ -28,6 +33,28 @@ const RESULT_BADGE: Record<BatchAdoptStatus, { tone: BadgeTone; label: string }>
   adopted: { tone: 'success', label: 'Adoptada' },
   already_adopted: { tone: 'neutral', label: 'Ya adoptada' },
 }
+
+/** Sin ordenar: es el orden en que el servidor reportó los hosts. */
+const RESULT_COLUMNS: ColumnDef<BatchAdoptResult>[] = [
+  {
+    id: 'host',
+    header: 'Host',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.host ?? '—'}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Resultado',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge tone={RESULT_BADGE[row.original.status].tone}>
+        {RESULT_BADGE[row.original.status].label}
+      </Badge>
+    ),
+  },
+]
 
 /**
  * `POST /users/adopt-all-hosts` (§7.4) — adopta TODAS las identidades en vivo de un username de
@@ -91,33 +118,12 @@ export function AdoptAllHostsModal({
               ? '; el resto ya estaba en el inventario.'
               : '.'}
           </p>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-3 py-1.5 font-semibold">Host</th>
-                  <th className="px-3 py-1.5 font-semibold">Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.results.map((item) => (
-                  <tr
-                    key={item.host ?? '(sin host)'}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-3 py-1.5 font-mono text-xs text-foreground">
-                      {item.host ?? '—'}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <Badge tone={RESULT_BADGE[item.status].tone}>
-                        {RESULT_BADGE[item.status].label}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={result.results}
+            columns={RESULT_COLUMNS}
+            enableGlobalFilter={false}
+            getRowId={(item) => item.host ?? '(sin host)'}
+          />
           <div className="flex justify-end">
             <Button type="button" onClick={onClose}>
               Cerrar

@@ -1,3 +1,4 @@
+import type { ColumnDef } from '@tanstack/react-table'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   AdoptionBadge,
@@ -6,6 +7,7 @@ import {
   Callout,
   Card,
   CardContent,
+  DataTable,
   EmptyState,
   ErrorState,
   FullPageSpinner,
@@ -29,6 +31,44 @@ import {
 } from '../components/engine-user-actions'
 import { IdentityActionButtons, UsernameActionButtons } from '../components/EngineUserActionButtons'
 import { useEngineUserDialogs } from '../components/use-engine-user-dialogs'
+
+/** Sin ordenar: las identidades llegan en el orden del servidor y son pocas (una por host). */
+const IDENTITY_COLUMNS: ColumnDef<EngineUserIdentity>[] = [
+  {
+    id: 'host',
+    header: 'Host',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.host ?? '—'}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Estado',
+    enableSorting: false,
+    cell: ({ row }) => <AdoptionBadge status={row.original.status} />,
+  },
+  {
+    id: 'password',
+    header: 'Contraseña',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge tone={row.original.has_password ? 'success' : 'neutral'}>
+        {row.original.has_password ? 'Conocida' : 'No conocida'}
+      </Badge>
+    ),
+  },
+  {
+    id: 'active',
+    header: 'Activo',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.is_active == null ? '—' : row.original.is_active ? 'Sí' : 'No'}
+      </span>
+    ),
+  },
+]
 
 const TABS = ['identity', 'grants', 'manage', 'databases'] as const
 type Tab = (typeof TABS)[number]
@@ -301,41 +341,12 @@ function ServerUserDetailContent({
           <CardContent className="flex flex-col gap-3">
             <h2 className="text-sm font-semibold text-foreground">Hosts de «{username}»</h2>
             {supportsHosts ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="px-3 py-1.5 font-semibold">Host</th>
-                      <th className="px-3 py-1.5 font-semibold">Estado</th>
-                      <th className="px-3 py-1.5 font-semibold">Contraseña</th>
-                      <th className="px-3 py-1.5 font-semibold">Activo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupedUser.identities.map((candidate) => (
-                      <tr
-                        key={candidate.host ?? '(sin host)'}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="px-3 py-1.5 font-mono text-xs text-foreground">
-                          {candidate.host ?? '—'}
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <AdoptionBadge status={candidate.status} />
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <Badge tone={candidate.has_password ? 'success' : 'neutral'}>
-                            {candidate.has_password ? 'Conocida' : 'No conocida'}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-1.5 text-muted-foreground">
-                          {candidate.is_active == null ? '—' : candidate.is_active ? 'Sí' : 'No'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                data={groupedUser.identities}
+                columns={IDENTITY_COLUMNS}
+                enableGlobalFilter={false}
+                getRowId={(candidate) => candidate.host ?? '(sin host)'}
+              />
             ) : (
               <p className="text-sm text-muted-foreground">
                 Este motor no usa hosts: la identidad es única por usuario.

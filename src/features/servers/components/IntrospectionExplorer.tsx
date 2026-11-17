@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Card,
@@ -6,10 +7,12 @@ import {
   CardHeader,
   CardTitle,
   Combobox,
+  DataTable,
   EmptyState,
   ErrorState,
   Spinner,
 } from '@/components/ui'
+import type { ColumnInfo } from '@/lib/contracts'
 import { useServerDatabases, useTableSchema, useTables } from '../hooks/use-introspection'
 
 /** Explorador de estructura (solo lectura, nunca filas) de un servidor alcanzable 🔌. */
@@ -78,6 +81,41 @@ export function IntrospectionExplorer({ serverId }: { serverId: number }) {
   )
 }
 
+/** Sin ordenar: el orden de las columnas es el de la tabla en el motor (posición ordinal). */
+const COLUMN_DEFINITIONS: ColumnDef<ColumnInfo>[] = [
+  {
+    id: 'name',
+    header: 'Columna',
+    enableSorting: false,
+    cell: ({ row }) => <span className="font-medium text-foreground">{row.original.name}</span>,
+  },
+  {
+    id: 'type',
+    header: 'Tipo',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.type}</span>,
+  },
+  {
+    id: 'nullable',
+    header: 'Nulo',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.nullable ? 'Sí' : 'No'}</span>
+    ),
+  },
+  {
+    id: 'attributes',
+    header: 'Atributos',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <div className="flex flex-wrap gap-1">
+        {row.original.primary_key && <Badge tone="primary">PK</Badge>}
+        {row.original.autoincrement && <Badge tone="neutral">auto</Badge>}
+      </div>
+    ),
+  },
+]
+
 type SchemaState = ReturnType<typeof useTableSchema>
 
 function TableSchemaView({ state }: { state: SchemaState }) {
@@ -97,33 +135,12 @@ function TableSchemaView({ state }: { state: SchemaState }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-3 py-2 font-semibold">Columna</th>
-              <th className="px-3 py-2 font-semibold">Tipo</th>
-              <th className="px-3 py-2 font-semibold">Nulo</th>
-              <th className="px-3 py-2 font-semibold">Atributos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {columns.map((column) => (
-              <tr key={column.name} className="border-b border-border last:border-0">
-                <td className="px-3 py-2 font-medium text-foreground">{column.name}</td>
-                <td className="px-3 py-2 text-muted-foreground">{column.type}</td>
-                <td className="px-3 py-2 text-muted-foreground">{column.nullable ? 'Sí' : 'No'}</td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-1">
-                    {column.primary_key && <Badge tone="primary">PK</Badge>}
-                    {column.autoincrement && <Badge tone="neutral">auto</Badge>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={columns}
+        columns={COLUMN_DEFINITIONS}
+        enableGlobalFilter={false}
+        getRowId={(column) => column.name}
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <SchemaFacts title="Clave primaria" items={primary_key} empty="—" />

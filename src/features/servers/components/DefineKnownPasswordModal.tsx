@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Badge, Button, Combobox, Input, Modal, Switch } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, Combobox, DataTable, Input, Modal, Switch } from '@/components/ui'
 import type { BadgeTone } from '@/components/ui'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import {
   CAPABILITIES,
   type DefinePasswordScope,
+  type KnownPasswordSetResult,
   type KnownPasswordSetStatus,
 } from '@/lib/contracts'
 import { useDefineKnownPassword } from '../hooks/use-engine-users'
@@ -39,6 +41,28 @@ const RESULT_BADGE: Record<KnownPasswordSetStatus, { tone: BadgeTone; label: str
   skipped_not_found: { tone: 'neutral', label: 'Sin fila (omitida)' },
   conflict_needs_overwrite: { tone: 'warning', label: 'Ya tenía contraseña' },
 }
+
+/** Sin ordenar: es el orden en que el servidor reportó los hosts. */
+const RESULT_COLUMNS: ColumnDef<KnownPasswordSetResult>[] = [
+  {
+    id: 'host',
+    header: 'Host',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.host ?? '—'}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Resultado',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge tone={RESULT_BADGE[row.original.status].tone}>
+        {RESULT_BADGE[row.original.status].label}
+      </Badge>
+    ),
+  },
+]
 
 /**
  * `POST /users/define-password` (§7.4) — flujo DEFINIR (≠ ROTAR): cifra y guarda una contraseña
@@ -122,33 +146,12 @@ export function DefineKnownPasswordModal({
     >
       {result ? (
         <div className="flex flex-col gap-4">
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-3 py-1.5 font-semibold">Host</th>
-                  <th className="px-3 py-1.5 font-semibold">Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.results.map((item) => (
-                  <tr
-                    key={item.host ?? '(sin host)'}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-3 py-1.5 font-mono text-xs text-foreground">
-                      {item.host ?? '—'}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <Badge tone={RESULT_BADGE[item.status].tone}>
-                        {RESULT_BADGE[item.status].label}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={result.results}
+            columns={RESULT_COLUMNS}
+            enableGlobalFilter={false}
+            getRowId={(item) => item.host ?? '(sin host)'}
+          />
           {conflicts.length > 0 ? (
             <>
               <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">

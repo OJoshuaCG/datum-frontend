@@ -1,10 +1,49 @@
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Badge, Button, Input, Modal, Switch } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, Input, Modal, Switch } from '@/components/ui'
 import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
-import { CAPABILITIES } from '@/lib/contracts'
+import { CAPABILITIES, type PasswordChangeBatchResult } from '@/lib/contracts'
 import { useChangeEngineUserPasswordAllHosts } from '../hooks/use-engine-users'
+
+/** Sin ordenar: es el orden en que el servidor reportó los hosts. */
+const RESULT_COLUMNS: ColumnDef<PasswordChangeBatchResult>[] = [
+  {
+    id: 'host',
+    header: 'Host',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.host ?? '—'}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Resultado',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge tone={row.original.status === 'rotated' ? 'success' : 'error'}>
+        {row.original.status === 'rotated' ? 'Rotada' : 'Error'}
+      </Badge>
+    ),
+  },
+  {
+    id: 'detail',
+    header: 'Detalle',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const item = row.original
+      if (item.status === 'error') {
+        return <span className="text-xs text-error">{item.error ?? 'Error desconocido'}</span>
+      }
+      return (
+        <span className="text-xs text-muted-foreground">
+          {item.adopted ? 'Adoptada al rotar' : '—'}
+        </span>
+      )
+    },
+  },
+]
 
 interface RotatePasswordAllHostsModalProps {
   onClose: () => void
@@ -92,43 +131,12 @@ export function RotatePasswordAllHostsModal({
               Contraseña rotada en los {result.total_hosts} host(s).
             </p>
           )}
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-3 py-1.5 font-semibold">Host</th>
-                  <th className="px-3 py-1.5 font-semibold">Resultado</th>
-                  <th className="px-3 py-1.5 font-semibold">Detalle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.results.map((item) => (
-                  <tr
-                    key={item.host ?? '(sin host)'}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-3 py-1.5 font-mono text-xs text-foreground">
-                      {item.host ?? '—'}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <Badge tone={item.status === 'rotated' ? 'success' : 'error'}>
-                        {item.status === 'rotated' ? 'Rotada' : 'Error'}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-1.5 text-xs">
-                      {item.status === 'error' ? (
-                        <span className="text-error">{item.error ?? 'Error desconocido'}</span>
-                      ) : item.adopted ? (
-                        <span className="text-muted-foreground">Adoptada al rotar</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={result.results}
+            columns={RESULT_COLUMNS}
+            enableGlobalFilter={false}
+            getRowId={(item) => item.host ?? '(sin host)'}
+          />
           <div className="flex justify-end">
             <Button type="button" onClick={onClose}>
               Cerrar
