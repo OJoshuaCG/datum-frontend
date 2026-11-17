@@ -27,6 +27,12 @@ export interface ActionMenuProps {
   /** Nombre accesible del disparador: dice de QUÉ fila son las acciones. */
   label: string
   items: ActionMenuItem[]
+  /**
+   * Texto visible del disparador. Sin él es un icono «⋯» (filas, donde se repite); con él es un
+   * botón `outline` con texto (cabecera de una ficha, donde aparece una sola vez y un icono suelto
+   * no dice qué hay dentro).
+   */
+  triggerText?: string
   className?: string
 }
 
@@ -53,7 +59,7 @@ interface MenuPosition {
  * - Se pinta en un portal con posición fija: las tablas recortan el desbordamiento y un menú
  *   absoluto quedaría cortado en la última fila.
  */
-export function ActionMenu({ label, items, className }: ActionMenuProps) {
+export function ActionMenu({ label, items, triggerText, className }: ActionMenuProps) {
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -149,18 +155,20 @@ export function ActionMenu({ label, items, className }: ActionMenuProps) {
       <Button
         ref={triggerRef}
         type="button"
-        variant="ghost"
-        size="icon-sm"
+        variant={triggerText ? 'outline' : 'ghost'}
+        size={triggerText ? undefined : 'icon-sm'}
         className={className}
-        aria-label={label}
-        title={label}
+        // Con texto visible, el nombre accesible es ese texto (WCAG 2.5.3: la etiqueta visible
+        // tiene que estar en el nombre); `label` sigue nombrando el menú desplegado.
+        aria-label={triggerText ? undefined : label}
+        title={triggerText ? undefined : label}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
         disabled={items.length === 0}
         onClick={() => (isOpen ? close() : open())}
       >
-        <MoreIcon />
+        {triggerText ?? <MoreIcon />}
       </Button>
       {isOpen &&
         createPortal(

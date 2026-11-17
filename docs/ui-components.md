@@ -148,6 +148,7 @@ Menú de disclosure (`role="menu"`) para las acciones de uso ocasional de una fi
 - **Teclado:** el foco entra al primer ítem habilitado; flechas, `Inicio`/`Fin` se mueven (omiten lo deshabilitado); `Esc` cierra y devuelve el foco al disparador; `Tab` y el clic fuera cierran.
 - **Uso actual:** `BlueprintsPanel` (fila del catálogo: «Ver BDs» y «Collation» van al menú; «Versiones», «Editar» y «Eliminar» siguen visibles) y `BlueprintMigrationsPage` (cabecera: «Lotes de collation» al menú; «Nueva versión», «Aplicar… 🔌», «Editar» y «Eliminar» visibles). `DatabaseRowActions` (`managed-databases`). Una fila con más de 4 acciones manda al menú Reasignar, Acceso de agentes, Comparar, Clonar y Exportar; con 4 o menos conserva todo a la vista. Y `IdentityActionButtons` en `layout="row"` (usuarios del motor): con más de 3 acciones manda Revelar y Rotar contraseña al menú; la ficha (`layout="header"`) nunca usa menú.
 - El disparador pide un `label` que nombra la fila («Más acciones de «ventas»»): con varias filas, sin ese contexto el lector de pantalla repite lo mismo.
+- **`triggerText`** convierte el disparador «⋯» en un botón `outline` con texto. Es para la cabecera de una ficha, donde el menú aparece una sola vez y un icono suelto no dice qué guarda: `DatabaseHeaderActions` lo usa como «Gestionar». Con texto visible, el nombre accesible del disparador es ese texto y `label` solo nombra el menú desplegado.
 
 ## Datos y estados
 
