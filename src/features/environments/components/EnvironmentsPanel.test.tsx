@@ -16,6 +16,14 @@ import { EnvironmentsPanel } from './EnvironmentsPanel'
 
 const API = 'http://localhost/api/v1'
 
+/**
+ * `DataTable` pinta la tabla Y las tarjetas (`md:hidden`) a la vez —jsdom no aplica CSS—, así que
+ * cada botón de fila existe dos veces. Se acota a la tabla para seguir con consultas únicas.
+ */
+async function findTable() {
+  return within(await screen.findByRole('table'))
+}
+
 /** Sesión con `environments.write` (la da `security_officer`) o sin ella. */
 function mockSession({ canWrite }: { canWrite: boolean }) {
   const me = canWrite
@@ -70,7 +78,9 @@ describe('EnvironmentsPanel', () => {
     const user = userEvent.setup()
     renderWithProviders(<EnvironmentsPanel />)
 
-    await user.click(await screen.findByRole('button', { name: /Permitir agentes en Production/ }))
+    await user.click(
+      (await findTable()).getByRole('button', { name: /Permitir agentes en Production/ }),
+    )
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/no abre ninguna base/)).toBeInTheDocument()
     const confirm = within(dialog).getByRole('button', { name: 'Permitir agentes' })
@@ -104,7 +114,9 @@ describe('EnvironmentsPanel', () => {
     const user = userEvent.setup()
     renderWithProviders(<EnvironmentsPanel />)
 
-    await user.click(await screen.findByRole('button', { name: /Cerrar a agentes en Production/ }))
+    await user.click(
+      (await findTable()).getByRole('button', { name: /Cerrar a agentes en Production/ }),
+    )
 
     await waitFor(() => expect(hit).toBe(true))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -136,7 +148,9 @@ describe('EnvironmentsPanel', () => {
     const user = userEvent.setup()
     renderWithProviders(<EnvironmentsPanel />)
 
-    await user.click(await screen.findByRole('button', { name: /Permitir agentes en Production/ }))
+    await user.click(
+      (await findTable()).getByRole('button', { name: /Permitir agentes en Production/ }),
+    )
     const dialog = await screen.findByRole('dialog')
     await user.type(
       within(dialog).getByLabelText(/Escribí «production» para confirmar/),
@@ -159,7 +173,9 @@ describe('EnvironmentsPanel', () => {
     expect(
       await screen.findByText(/cambiar el acceso de agentes de un entorno/),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Permitir agentes en Production/ })).toBeDisabled()
+    expect(
+      (await findTable()).getByRole('button', { name: /Permitir agentes en Production/ }),
+    ).toBeDisabled()
   })
 
   it('ante el 403 de step-up pide la contraseña y reenvía el PATCH una sola vez', async () => {
@@ -192,7 +208,9 @@ describe('EnvironmentsPanel', () => {
     const user = userEvent.setup()
     renderWithProviders(<EnvironmentsPanel />)
 
-    await user.click(await screen.findByRole('button', { name: /Cerrar a agentes en Production/ }))
+    await user.click(
+      (await findTable()).getByRole('button', { name: /Cerrar a agentes en Production/ }),
+    )
 
     await waitFor(() => expect(calls).toBe(2))
     expect(prompts).toBe(1)

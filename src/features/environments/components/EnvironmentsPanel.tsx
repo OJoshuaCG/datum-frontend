@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Button,
@@ -10,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  DataTable,
   EnvironmentBadge,
   ErrorState,
   Spinner,
@@ -54,14 +56,142 @@ export function EnvironmentsPanel() {
   const update = useUpdateEnvironment()
   const stepUp = useStepUp()
 
-  const setAgentAccess = (env: EnvironmentOut, allow: boolean, confirmSlug?: string) => {
-    stepUp.withFresh(CAPABILITIES.environmentsWrite, () =>
-      update.mutate(
-        { id: env.id, body: { allows_agent_access: allow }, confirmSlug },
-        { onSuccess: () => setConfirming(null) },
-      ),
-    )
-  }
+  const { mutate: mutateEnvironment } = update
+  const { withFresh } = stepUp
+
+  const setAgentAccess = useCallback(
+    (env: EnvironmentOut, allow: boolean, confirmSlug?: string) => {
+      withFresh(CAPABILITIES.environmentsWrite, () =>
+        mutateEnvironment(
+          { id: env.id, body: { allows_agent_access: allow }, confirmSlug },
+          { onSuccess: () => setConfirming(null) },
+        ),
+      )
+    },
+    [withFresh, mutateEnvironment],
+  )
+
+  const canToggleAgentAccess = guard.allowed && !update.isPending
+  const guardDescribedBy = guard.describedBy
+
+  const columns = useMemo<ColumnDef<EnvironmentOut>[]>(
+    () => [
+      {
+        id: 'environment',
+        header: 'Entorno',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const env = row.original
+          return (
+            <span className="flex flex-wrap items-center gap-2">
+              <EnvironmentBadge
+                state={{
+                  kind: 'assigned',
+                  name: env.name,
+                  color: env.color,
+                  blocksDestructive: env.blocks_destructive_migrations,
+                }}
+              />
+              <code className="text-xs text-muted-foreground">{env.slug}</code>
+              {env.is_default && <Badge tone="info">por defecto</Badge>}
+              {!env.is_active && <Badge tone="neutral">inactivo</Badge>}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'policy',
+        header: 'Política aplicada',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const env = row.original
+          return (
+            <span className="flex flex-col gap-1">
+              {env.blocks_destructive_migrations ? (
+                <span className="text-warning">
+                  Bloquea migraciones destructivas (DROP / TRUNCATE / DELETE sin WHERE / ALTER DROP
+                  COLUMN)
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Sin restricciones</span>
+              )}
+              {/*
+                Se muestra SIEMPRE, encendido o apagado, y no solo cuando está abierto:
+                es una superficie de lectura sobre bases de terceros, y «no dice nada»
+                se lee igual que «está cerrado». Que el estado sea explícito es la mitad
+                del valor de la fila.
+
+                Y se describe como condición PARCIAL a propósito: el flag del entorno es
+                una de las cinco del gate de agentes. Presentarlo como «los agentes
+                acceden» prometería un acceso que igual puede no existir, porque cada
+                base necesita además su propio opt-in.
+              */}
+              {env.allows_agent_access ? (
+                <span className="text-warning">
+                  Permite acceso de agentes (falta además el opt-in de cada base)
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Cerrado a agentes: ninguna de sus bases es alcanzable por un token
+                </span>
+              )}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'databases',
+        header: 'BDs asignadas',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const env = row.original
+          return env.database_count > 0 ? (
+            // Enlace al inventario SIN query param: los filtros de esa página viven
+            // en `useState`, no en la URL, así que un `?environment_id=` no se
+            // aplicaría y el link prometería un filtro que no ocurre. Cuando los
+            // filtros se sincronicen con la URL, acá se agrega el param y el título
+            // deja de hacer falta.
+            <Link
+              to="/managed-databases"
+              className="text-primary hover:underline"
+              title={`Filtrá por «${env.name}» en el inventario para verlas.`}
+            >
+              {env.database_count}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">0</span>
+          )
+        },
+      },
+      {
+        // `header: ''` = zona de acciones de la tarjeta en pantallas angostas.
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const env = row.original
+          // Acción de dominio: va con texto, no con icono. Se ofrece siempre (con la guarda de
+          // capacidad) y no solo a quien ya puede: deshabilitada y con el motivo a la vista,
+          // igual que el resto de la pantalla.
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canToggleAgentAccess}
+              aria-describedby={guardDescribedBy}
+              aria-label={`${env.allows_agent_access ? 'Cerrar a agentes' : 'Permitir agentes'} en ${env.name}`}
+              onClick={() =>
+                env.allows_agent_access ? setAgentAccess(env, false) : setConfirming(env)
+              }
+            >
+              {env.allows_agent_access ? 'Cerrar a agentes' : 'Permitir agentes'}
+            </Button>
+          )
+        },
+      },
+    ],
+    [canToggleAgentAccess, guardDescribedBy, setAgentAccess],
+  )
 
   // Si el backend rechaza la confirmación, se muestra su slug esperado y qué se debilita.
   const confirmError = confirming && update.isError ? toApiError(update.error) : null
@@ -90,113 +220,18 @@ export function EnvironmentsPanel() {
           />
         )}
         {environments.data && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Entorno</th>
-                  <th className="pb-2 pr-4 font-medium">Política aplicada</th>
-                  <th className="pb-2 pr-4 font-medium">BDs asignadas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {environments.data.map((env) => (
-                  <tr key={env.id}>
-                    <td className="py-2 pr-4">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <EnvironmentBadge
-                          state={{
-                            kind: 'assigned',
-                            name: env.name,
-                            color: env.color,
-                            blocksDestructive: env.blocks_destructive_migrations,
-                          }}
-                        />
-                        <code className="text-xs text-muted-foreground">{env.slug}</code>
-                        {env.is_default && <Badge tone="info">por defecto</Badge>}
-                        {!env.is_active && <Badge tone="neutral">inactivo</Badge>}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4">
-                      <span className="flex flex-col gap-1">
-                        {env.blocks_destructive_migrations ? (
-                          <span className="text-warning">
-                            Bloquea migraciones destructivas (DROP / TRUNCATE / DELETE sin WHERE /
-                            ALTER DROP COLUMN)
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Sin restricciones</span>
-                        )}
-                        {/*
-                          Se muestra SIEMPRE, encendido o apagado, y no solo cuando está abierto:
-                          es una superficie de lectura sobre bases de terceros, y «no dice nada»
-                          se lee igual que «está cerrado». Que el estado sea explícito es la mitad
-                          del valor de la fila.
-
-                          Y se describe como condición PARCIAL a propósito: el flag del entorno es
-                          una de las cinco del gate de agentes. Presentarlo como «los agentes
-                          acceden» prometería un acceso que igual puede no existir, porque cada
-                          base necesita además su propio opt-in.
-                        */}
-                        {env.allows_agent_access ? (
-                          <span className="text-warning">
-                            Permite acceso de agentes (falta además el opt-in de cada base)
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            Cerrado a agentes: ninguna de sus bases es alcanzable por un token
-                          </span>
-                        )}
-                        {/*
-                          Acción de dominio: va con texto, no con icono. Se ofrece siempre (con
-                          la guarda de capacidad) y no solo a quien ya puede: deshabilitada y con
-                          el motivo a la vista, igual que el resto de la pantalla.
-                        */}
-                        <span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!guard.allowed || update.isPending}
-                            aria-describedby={guard.describedBy}
-                            aria-label={`${env.allows_agent_access ? 'Cerrar a agentes' : 'Permitir agentes'} en ${env.name}`}
-                            onClick={() =>
-                              env.allows_agent_access
-                                ? setAgentAccess(env, false)
-                                : setConfirming(env)
-                            }
-                          >
-                            {env.allows_agent_access ? 'Cerrar a agentes' : 'Permitir agentes'}
-                          </Button>
-                        </span>
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4">
-                      {env.database_count > 0 ? (
-                        // Enlace al inventario SIN query param: los filtros de esa página viven
-                        // en `useState`, no en la URL, así que un `?environment_id=` no se
-                        // aplicaría y el link prometería un filtro que no ocurre. Cuando los
-                        // filtros se sincronicen con la URL, acá se agrega el param y el título
-                        // deja de hacer falta.
-                        <Link
-                          to="/managed-databases"
-                          className="text-primary hover:underline"
-                          title={`Filtrá por «${env.name}» en el inventario para verlas.`}
-                        >
-                          {env.database_count}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-4">
+            <DataTable
+              data={environments.data}
+              columns={columns}
+              getRowId={environmentRowId}
+              enableGlobalFilter={false}
+            />
             {/*
               Alcance explícito. Un badge crea creencias más amplias que la barrera, y esta es la
               única pantalla donde se puede decir de una vez qué NO cubre.
             */}
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               El bloqueo cubre <strong>aplicar migraciones</strong> (masivo y por BD). No cubre
               rollback, reconciliación parcial, <code>DROP DATABASE</code>, el clon que recrea el
               destino, la consola SQL, la conversión de collation ni la exportación: esos caminos
@@ -246,4 +281,8 @@ export function EnvironmentsPanel() {
       )}
     </Card>
   )
+}
+
+function environmentRowId(env: EnvironmentOut): string {
+  return String(env.id)
 }
