@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
+  ActionMenu,
   Badge,
   Button,
   DataTable,
@@ -101,22 +102,28 @@ export function BlueprintsPanel() {
             >
               Versiones
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setDatabasesTarget(row.original)}>
-              Ver BDs
-            </Button>
             {/*
-              Entrada al lote de conversión de collation. Va acá y no en el menú de una base
-              porque el conjunto a convertir lo define el BLUEPRINT: son todas sus bases activas.
-              La pestaña de deriva de esa misma pantalla responde la pregunta previa —¿hace falta
-              convertir algo?— así que este botón también es el camino a "ver si hay deriva".
+              «Ver BDs» y «Collation» son de uso ocasional y por eso van al menú; «Versiones»,
+              «Editar» y «Eliminar» siguen a la vista. «Collation» es la entrada al lote de
+              conversión de collation: va acá y no en el menú de una base porque el conjunto a
+              convertir lo define el BLUEPRINT (todas sus bases activas), y la pestaña de deriva de
+              esa pantalla responde la pregunta previa de si hace falta convertir algo.
             */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(`/database-models/${row.original.id}/collation-batches`)}
-            >
-              Collation
-            </Button>
+            <ActionMenu
+              label={`Más acciones de «${row.original.name}»`}
+              items={[
+                {
+                  id: 'view-databases',
+                  label: 'Ver BDs',
+                  onSelect: () => setDatabasesTarget(row.original),
+                },
+                {
+                  id: 'collation-batches',
+                  label: 'Collation',
+                  onSelect: () => navigate(`/database-models/${row.original.id}/collation-batches`),
+                },
+              ]}
+            />
             <IconButton
               label="Editar"
               icon={<PencilIcon />}

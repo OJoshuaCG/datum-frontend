@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
+  ActionMenu,
   Badge,
   Button,
   Callout,
@@ -367,14 +368,6 @@ export function BlueprintMigrationsPage() {
               >
                 Nueva versión
               </Button>
-              {/* Misma ruta que el botón «Collation» de la fila del catálogo: el lote lo define
-                  el blueprint, así que su entrada natural es esta página. */}
-              <Button
-                variant="outline"
-                onClick={() => void navigate(`/database-models/${modelId}/collation-batches`)}
-              >
-                Lotes de collation
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => setEditOpen(true)}
@@ -383,6 +376,19 @@ export function BlueprintMigrationsPage() {
               >
                 Editar
               </Button>
+              {/* Misma ruta que «Collation» en el menú de la fila del catálogo: el lote lo define
+                  el blueprint, así que su entrada natural es esta página. Es de uso ocasional,
+                  por eso va en el menú y antes de la destructiva, que sigue siendo lo último. */}
+              <ActionMenu
+                label="Más acciones del blueprint"
+                items={[
+                  {
+                    id: 'collation-batches',
+                    label: 'Lotes de collation',
+                    onSelect: () => void navigate(`/database-models/${modelId}/collation-batches`),
+                  },
+                ]}
+              />
               <Button
                 variant="danger-soft"
                 onClick={() => setDeleteOpen(true)}
