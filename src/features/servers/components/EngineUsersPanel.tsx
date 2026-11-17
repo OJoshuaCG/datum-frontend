@@ -165,6 +165,9 @@ export function EngineUsersPanel({ serverId }: { serverId: number; engine: Engin
           description="Creá un usuario del motor para empezar a gestionarlo."
         />
       ) : (
+        // Excepción documentada a «las tablas usan DataTable»: cada usuario se despliega en una
+        // subtabla de sus identidades (host), y `DataTable` no tiene filas expandibles. Migrarla
+        // exige antes soportar sub-filas allí; mientras tanto conserva su propio scroll.
         <div className="overflow-x-auto rounded-card border border-border">
           <table className="w-full border-collapse text-sm">
             <thead>

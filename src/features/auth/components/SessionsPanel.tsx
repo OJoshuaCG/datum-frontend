@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Button,
@@ -11,17 +12,57 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  DataTable,
   EmptyState,
   ErrorState,
   Spinner,
 } from '@/components/ui'
 import { queryKeys } from '@/lib/api/query-keys'
+import type { SessionInfo } from '@/lib/contracts'
 import { useToast } from '@/lib/toast/use-toast'
 import { formatDateTime } from '@/lib/utils'
 import { listSessions, revokeOtherSessions } from '../api/auth.api'
 import { useSession } from '../hooks/use-session'
 import { MY_PASSWORD_PATH } from '../messages'
 import { notifyMutationError } from '../notify-mutation-error'
+
+const SESSION_COLUMNS: ColumnDef<SessionInfo>[] = [
+  {
+    id: 'session',
+    header: 'Sesión',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="flex flex-wrap items-center gap-2">
+        <code className="font-mono text-xs text-muted-foreground">{row.original.sid_prefix}…</code>
+        {row.original.current && <Badge tone="success">esta pestaña</Badge>}
+      </span>
+    ),
+  },
+  {
+    id: 'created',
+    header: 'Iniciada',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{formatDateTime(row.original.created_at)}</span>
+    ),
+  },
+  {
+    id: 'lastSeen',
+    header: 'Última actividad',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.last_seen_at ? formatDateTime(row.original.last_seen_at) : '—'}
+      </span>
+    ),
+  },
+  {
+    id: 'origin',
+    header: 'Origen',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.ip ?? '—'}</span>,
+  },
+]
 
 /**
  * Sesiones vivas del propio usuario (api-reference-v23 §7.4).
@@ -117,39 +158,12 @@ export function SessionsPanel() {
             description="El gateway no reportó ninguna sesión abierta."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Sesión</th>
-                  <th className="pb-2 pr-4 font-medium">Iniciada</th>
-                  <th className="pb-2 pr-4 font-medium">Última actividad</th>
-                  <th className="pb-2 pr-4 font-medium">Origen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(sessions.data ?? []).map((item) => (
-                  <tr key={item.sid_prefix}>
-                    <td className="py-2 pr-4">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <code className="font-mono text-xs text-muted-foreground">
-                          {item.sid_prefix}…
-                        </code>
-                        {item.current && <Badge tone="success">esta pestaña</Badge>}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
-                      {formatDateTime(item.created_at)}
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
-                      {item.last_seen_at ? formatDateTime(item.last_seen_at) : '—'}
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground">{item.ip ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={sessions.data ?? []}
+            columns={SESSION_COLUMNS}
+            getRowId={(item) => item.sid_prefix}
+            enableGlobalFilter={false}
+          />
         )}
 
         {others > 0 && (

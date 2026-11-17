@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Button,
   Card,
   CardContent,
+  DataTable,
   EmptyState,
   ErrorState,
   FullPageSpinner,
@@ -68,6 +70,95 @@ export function ProjectDetailPage() {
     [blueprints.data],
   )
   const linkedIds = useMemo(() => sorted.map((item) => item.id), [sorted])
+
+  const blueprintColumns = useMemo<ColumnDef<DatabaseModelOut>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Nombre',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Link
+            to={`/database-models/${row.original.id}/migrations`}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
+      },
+      {
+        id: 'slug',
+        header: 'Slug',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+            {row.original.slug}
+          </code>
+        ),
+      },
+      {
+        id: 'version',
+        header: 'Versión',
+        enableSorting: false,
+        cell: ({ row }) => <Badge tone="info">{row.original.current_version}</Badge>,
+      },
+      {
+        id: 'active',
+        header: 'Activo',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge tone={row.original.is_active ? 'success' : 'neutral'}>
+            {row.original.is_active ? 'Activo' : 'Inactivo'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'charset',
+        header: 'Charset / Collation',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.charset
+              ? `${row.original.charset} / ${row.original.collation ?? '—'}`
+              : '—'}
+          </span>
+        ),
+      },
+      {
+        // `header: ''` = zona de acciones de la tarjeta en pantallas angostas.
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const item = row.original
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {/* Icono y no texto: es una acción de fila repetida y universalmente reconocible.
+                  «Quitar del proyecto» conserva el texto porque es una acción de dominio que no
+                  se adivina de un icono. */}
+              <IconButton
+                label="Editar blueprint"
+                icon={<PencilIcon />}
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setBlueprintToEdit(item)}
+              />
+              {/* Sin confirmación: un confirm() aquí es fricción sin contenido. A cambio, la barra
+                  de deshacer de arriba. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => unlink.mutate(item.id, { onSuccess: () => setUndoTarget(item) })}
+              >
+                Quitar del proyecto
+              </Button>
+            </div>
+          )
+        },
+      },
+    ],
+    [unlink],
+  )
 
   if (Number.isNaN(projectId)) {
     return <ErrorState error={new Error('Identificador de proyecto inválido.')} />
@@ -162,75 +253,12 @@ export function ProjectDetailPage() {
           ) : (
             <>
               {/* Sin paginador: el endpoint devuelve la lista completa y no acepta page/size. */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-3 font-medium">Nombre</th>
-                      <th className="py-2 pr-3 font-medium">Slug</th>
-                      <th className="py-2 pr-3 font-medium">Versión</th>
-                      <th className="py-2 pr-3 font-medium">Activo</th>
-                      <th className="py-2 pr-3 font-medium">Charset / Collation</th>
-                      <th className="py-2 font-medium" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((item) => (
-                      <tr key={item.id} className="border-b border-border/60 last:border-0">
-                        <td className="py-2 pr-3">
-                          <Link
-                            to={`/database-models/${item.id}/migrations`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {item.name}
-                          </Link>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            {item.slug}
-                          </code>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <Badge tone="info">{item.current_version}</Badge>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <Badge tone={item.is_active ? 'success' : 'neutral'}>
-                            {item.is_active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {item.charset ? `${item.charset} / ${item.collation ?? '—'}` : '—'}
-                        </td>
-                        <td className="py-2">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Icono y no texto: es una acción de fila repetida y universalmente
-                                reconocible. «Quitar del proyecto» conserva el texto porque es
-                                una acción de dominio que no se adivina de un icono. */}
-                            <IconButton
-                              label="Editar blueprint"
-                              icon={<PencilIcon />}
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => setBlueprintToEdit(item)}
-                            />
-                            {/* Sin confirmación: un confirm() aquí es fricción sin contenido.
-                                A cambio, la barra de deshacer de arriba. */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                unlink.mutate(item.id, { onSuccess: () => setUndoTarget(item) })
-                              }
-                            >
-                              Quitar del proyecto
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                data={sorted}
+                columns={blueprintColumns}
+                getRowId={(item) => String(item.id)}
+                enableGlobalFilter={false}
+              />
               <p className="text-xs text-muted-foreground">
                 Quitar un blueprint del proyecto no lo borra ni afecta a sus bases de datos.
               </p>
@@ -239,9 +267,7 @@ export function ProjectDetailPage() {
         </CardContent>
       </Card>
 
-      {editOpen && (
-        <ProjectFormModal open onClose={() => setEditOpen(false)} project={data} />
-      )}
+      {editOpen && <ProjectFormModal open onClose={() => setEditOpen(false)} project={data} />}
 
       {/* Montaje condicional, como el resto de los diálogos de esta página: así el formulario se
           monta con los valores del blueprint elegido en vez de arrastrar los del anterior
@@ -273,7 +299,10 @@ export function ProjectDetailPage() {
             } else if (added > 0) {
               toast.success(`${added} blueprint(s) agregado(s) al proyecto.`)
             } else {
-              toast.success('Esos blueprints ya estaban en el proyecto.', 'No hizo falta ningún cambio.')
+              toast.success(
+                'Esos blueprints ya estaban en el proyecto.',
+                'No hizo falta ningún cambio.',
+              )
             }
           }}
         />

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Button,
   Checkbox,
+  DataTable,
   EmptyState,
   ErrorState,
   IconButton,
@@ -71,6 +73,130 @@ export function DatabaseGranteesPanel({ serverId, database }: DatabaseGranteesPa
       return next
     })
   }
+
+  // Sin `data` todavía no se sabe si el motor tiene hosts: la columna Host solo existe si los tiene.
+  const supportsHosts = data?.supports_hosts ?? false
+
+  const columns = useMemo<ColumnDef<DatabaseGrantee>[]>(() => {
+    const hostColumn: ColumnDef<DatabaseGrantee>[] = supportsHosts
+      ? [
+          {
+            id: 'host',
+            header: 'Host',
+            enableSorting: false,
+            cell: ({ row }) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {row.original.host ?? '—'}
+              </span>
+            ),
+          },
+        ]
+      : []
+
+    return [
+      {
+        id: 'username',
+        header: 'Usuario',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-foreground">{row.original.username}</span>
+        ),
+      },
+      ...hostColumn,
+      {
+        id: 'scope',
+        header: 'Alcance',
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.is_global ? (
+            <Badge tone="warning">GLOBAL (*.*)</Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">Esta base</span>
+          ),
+      },
+      {
+        id: 'privileges',
+        header: 'Privilegios',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const grantee = row.original
+          const key = granteeKey(grantee)
+          const isExpanded = expanded.has(key)
+          const hidden = grantee.privileges.length - PRIVILEGE_PREVIEW
+          const visiblePrivileges =
+            isExpanded || hidden <= 0
+              ? grantee.privileges
+              : grantee.privileges.slice(0, PRIVILEGE_PREVIEW)
+
+          return (
+            <div className="flex flex-wrap items-center gap-1">
+              {visiblePrivileges.map((privilege) => (
+                <Badge key={privilege} tone={isDangerousPrivilege(privilege) ? 'error' : 'neutral'}>
+                  {privilege}
+                </Badge>
+              ))}
+              {hidden > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(key)}
+                  aria-expanded={isExpanded}
+                  className="rounded px-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isExpanded ? 'Ver menos' : `y ${hidden} más`}
+                </button>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'levels',
+        header: 'Niveles',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.levels.map((level) => (
+              <Badge key={level} tone="neutral">
+                {level}
+              </Badge>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Inventario',
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.status === 'adopted' ? (
+            <Badge tone="success">Adoptado</Badge>
+          ) : (
+            <Badge tone="warning">No gestionado</Badge>
+          ),
+      },
+      {
+        // `header: ''` = zona de acciones de la tarjeta en pantallas angostas.
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const grantee = row.original
+          // La ficha se identifica por `(servidor, usuario, host)`, no por el id del inventario:
+          // es la misma ruta esté o no adoptado, y ahí mismo se adopta.
+          return (
+            <Link
+              to={serverUserPath(serverId, grantee.username, grantee.host)}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {grantee.status === 'adopted' && grantee.server_user_id
+                ? 'Ver usuario →'
+                : 'Adoptar usuario →'}
+            </Link>
+          )
+        },
+      },
+    ]
+  }, [supportsHosts, expanded, serverId])
 
   const refreshButton = (
     <IconButton
@@ -152,102 +278,13 @@ export function DatabaseGranteesPanel({ serverId, database }: DatabaseGranteesPa
     }
 
     return (
-      <div className="overflow-x-auto rounded-card border border-border">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-3 py-2 font-semibold">Usuario</th>
-              {supportsHosts && <th className="px-3 py-2 font-semibold">Host</th>}
-              <th className="px-3 py-2 font-semibold">Alcance</th>
-              <th className="px-3 py-2 font-semibold">Privilegios</th>
-              <th className="px-3 py-2 font-semibold">Niveles</th>
-              <th className="px-3 py-2 font-semibold">Inventario</th>
-              <th className="px-3 py-2 font-semibold">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((grantee) => {
-              const key = granteeKey(grantee)
-              const isExpanded = expanded.has(key)
-              const hidden = grantee.privileges.length - PRIVILEGE_PREVIEW
-              const visiblePrivileges =
-                isExpanded || hidden <= 0
-                  ? grantee.privileges
-                  : grantee.privileges.slice(0, PRIVILEGE_PREVIEW)
-
-              return (
-                <tr key={key} className="border-b border-border align-top last:border-0">
-                  <td className="px-3 py-2 font-mono text-xs text-foreground">
-                    {grantee.username}
-                  </td>
-                  {supportsHosts && (
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                      {grantee.host ?? '—'}
-                    </td>
-                  )}
-                  <td className="px-3 py-2">
-                    {grantee.is_global ? (
-                      <Badge tone="warning">GLOBAL (*.*)</Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Esta base</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {visiblePrivileges.map((privilege) => (
-                        <Badge
-                          key={privilege}
-                          tone={isDangerousPrivilege(privilege) ? 'error' : 'neutral'}
-                        >
-                          {privilege}
-                        </Badge>
-                      ))}
-                      {hidden > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(key)}
-                          aria-expanded={isExpanded}
-                          className="rounded px-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {isExpanded ? 'Ver menos' : `y ${hidden} más`}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {grantee.levels.map((level) => (
-                        <Badge key={level} tone="neutral">
-                          {level}
-                        </Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    {grantee.status === 'adopted' ? (
-                      <Badge tone="success">Adoptado</Badge>
-                    ) : (
-                      <Badge tone="warning">No gestionado</Badge>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {/* La ficha se identifica por `(servidor, usuario, host)`, no por el id del
-                        inventario: es la misma ruta esté o no adoptado, y ahí mismo se adopta. */}
-                    <Link
-                      to={serverUserPath(serverId, grantee.username, grantee.host)}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      {grantee.status === 'adopted' && grantee.server_user_id
-                        ? 'Ver usuario →'
-                        : 'Adoptar usuario →'}
-                    </Link>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={filtered}
+        columns={columns}
+        getRowId={granteeKey}
+        enableGlobalFilter={false}
+        isFetching={isFetching}
+      />
     )
   }
 

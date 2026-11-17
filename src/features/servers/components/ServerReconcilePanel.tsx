@@ -1,8 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   AdoptionBadge,
   Button,
+  DataTable,
   EmptyState,
   ErrorState,
   IconButton,
@@ -11,7 +13,12 @@ import {
   type AdoptionStatus,
 } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import type { ReconcileState, ServerUserOut } from '@/lib/contracts'
+import type {
+  ReconcileDatabaseItem,
+  ReconcileState,
+  ReconcileUserItem,
+  ServerUserOut,
+} from '@/lib/contracts'
 import { serverDatabasePath, serverUserPath } from '@/lib/routes'
 import { AdoptDatabaseModal } from '@/features/managed-databases/components/AdoptDatabaseModal'
 import { AdoptUserModal } from '@/features/server-users/components/AdoptUserModal'
@@ -73,6 +80,135 @@ export function ServerReconcilePanel({ serverId }: { serverId: number }) {
   const dbCounts = useMemo(() => countStates(data?.databases.map((d) => d.state) ?? []), [data])
   const userCounts = useMemo(() => countStates(data?.users.map((u) => u.state) ?? []), [data])
 
+  const databaseColumns = useMemo<ColumnDef<ReconcileDatabaseItem>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Nombre',
+        enableSorting: false,
+        cell: ({ row }) => (
+          // También las huérfanas: su ficha distingue «sin aprovisionar» de «existía y
+          // desapareció» y ofrece la salida de cada caso.
+          <Link
+            to={serverDatabasePath(serverId, row.original.name)}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
+      },
+      {
+        id: 'state',
+        header: 'Estado',
+        enableSorting: false,
+        cell: ({ row }) => <AdoptionBadge status={ADOPTION_STATUS[row.original.state]} />,
+      },
+      {
+        id: 'owner',
+        header: 'Dueño',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            <OwnerCell ownerId={row.original.owner_id} owners={ownersById} serverId={serverId} />
+          </span>
+        ),
+      },
+      {
+        // `header: ''` = zona de acciones de la tarjeta en pantallas angostas.
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const db = row.original
+          return (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <Button variant="ghost" size="sm" onClick={() => setSnapshotDb(db.name)}>
+                Ver snapshot
+              </Button>
+              {db.state !== 'orphan' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    navigate(
+                      `/database-models/from-snapshot?serverId=${serverId}&database=${encodeURIComponent(
+                        db.name,
+                      )}`,
+                    )
+                  }
+                  title="Abre el asistente para elegir qué objetos y datos capturar"
+                >
+                  Crear blueprint
+                </Button>
+              )}
+              {db.state === 'unmanaged' && (
+                <Button variant="outline" size="sm" onClick={() => setAdoptDb(db.name)}>
+                  Adoptar
+                </Button>
+              )}
+            </div>
+          )
+        },
+      },
+    ],
+    [navigate, ownersById, serverId],
+  )
+
+  const userColumns = useMemo<ColumnDef<ReconcileUserItem>[]>(
+    () => [
+      {
+        id: 'username',
+        header: 'Usuario',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Link
+            to={serverUserPath(serverId, row.original.username, row.original.host)}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.original.username}
+          </Link>
+        ),
+      },
+      {
+        id: 'host',
+        header: 'Host',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.host ?? '—'}</span>
+        ),
+      },
+      {
+        id: 'state',
+        header: 'Estado',
+        enableSorting: false,
+        cell: ({ row }) => <AdoptionBadge status={ADOPTION_STATUS[row.original.state]} />,
+      },
+      {
+        // `header: ''` = zona de acciones de la tarjeta en pantallas angostas.
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const user = row.original
+          return (
+            <div className="flex justify-end">
+              {user.state === 'unmanaged' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAdoptUser({ username: user.username, host: user.host })}
+                >
+                  Adoptar usuario
+                </Button>
+              )}
+            </div>
+          )
+        },
+      },
+    ],
+    [serverId],
+  )
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -113,118 +249,22 @@ export function ServerReconcilePanel({ serverId }: { serverId: number }) {
         data.databases.length === 0 ? (
           <EmptyState title="Sin bases de datos" />
         ) : (
-          <div className="overflow-x-auto rounded-card border border-border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-3 py-2 font-semibold">Nombre</th>
-                  <th className="px-3 py-2 font-semibold">Estado</th>
-                  <th className="px-3 py-2 font-semibold">Dueño</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.databases.map((db) => (
-                  <tr key={db.name} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2">
-                      {/* También las huérfanas: su ficha distingue «sin aprovisionar» de
-                          «existía y desapareció» y ofrece la salida de cada caso. */}
-                      <Link
-                        to={serverDatabasePath(serverId, db.name)}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {db.name}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">
-                      <AdoptionBadge status={ADOPTION_STATUS[db.state]} />
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      <OwnerCell ownerId={db.owner_id} owners={ownersById} serverId={serverId} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1.5">
-                        <Button variant="ghost" size="sm" onClick={() => setSnapshotDb(db.name)}>
-                          Ver snapshot
-                        </Button>
-                        {db.state !== 'orphan' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              navigate(
-                                `/database-models/from-snapshot?serverId=${serverId}&database=${encodeURIComponent(
-                                  db.name,
-                                )}`,
-                              )
-                            }
-                            title="Abre el asistente para elegir qué objetos y datos capturar"
-                          >
-                            Crear blueprint
-                          </Button>
-                        )}
-                        {db.state === 'unmanaged' && (
-                          <Button variant="outline" size="sm" onClick={() => setAdoptDb(db.name)}>
-                            Adoptar
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={data.databases}
+            columns={databaseColumns}
+            getRowId={(db) => db.name}
+            enableGlobalFilter={false}
+          />
         )
       ) : data.users.length === 0 ? (
         <EmptyState title="Sin usuarios" />
       ) : (
-        <div className="overflow-x-auto rounded-card border border-border">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Usuario</th>
-                <th className="px-3 py-2 font-semibold">Host</th>
-                <th className="px-3 py-2 font-semibold">Estado</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.users.map((user) => (
-                <tr
-                  key={`${user.username}@${user.host ?? ''}`}
-                  className="border-b border-border last:border-0"
-                >
-                  <td className="px-3 py-2">
-                    <Link
-                      to={serverUserPath(serverId, user.username, user.host)}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {user.username}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{user.host ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    <AdoptionBadge status={ADOPTION_STATUS[user.state]} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end">
-                      {user.state === 'unmanaged' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setAdoptUser({ username: user.username, host: user.host })}
-                        >
-                          Adoptar usuario
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={data.users}
+          columns={userColumns}
+          getRowId={(user) => `${user.username}@${user.host ?? ''}`}
+          enableGlobalFilter={false}
+        />
       )}
 
       {adoptDb && (
