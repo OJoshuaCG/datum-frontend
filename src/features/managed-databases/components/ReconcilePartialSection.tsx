@@ -43,6 +43,11 @@ interface ReconcilePartialSectionProps {
  *
  * Vive dentro de la página de migraciones y no en un diálogo: el plan de reversos es una tabla de
  * SQL que hay que leer entera antes de decidir, y apilada en un modal sobre otro no cabía.
+ *
+ * El plan es una tabla nativa y no un `DataTable` a propósito: cada fila es SQL de varias líneas
+ * (`whitespace-pre-wrap`), la región tiene scroll VERTICAL propio (`max-h-96`) y no hay scroll
+ * horizontal, que es lo que la regla del repo prohíbe. `DataTable` no limita la altura ni conserva
+ * el formato del SQL, y el orden (de mayor a menor `seq`) es una garantía, no una preferencia.
  */
 export function ReconcilePartialSection({
   dbId,

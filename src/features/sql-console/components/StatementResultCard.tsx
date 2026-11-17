@@ -22,6 +22,12 @@ export interface StatementResultCardProps {
  * El criterio de color es el del módulo entero: que el motor rechace una sentencia NO es un
  * error rojo —es el resultado de la prueba que el admin vino a hacer— y una sentencia que no
  * llegó a correr tampoco falló. El rojo queda para `policy_miss`, que es un bug del gateway.
+ *
+ * La rejilla de filas es una tabla nativa y no un `DataTable` (excepción de `docs/ui-conventions.md`
+ * §6): las columnas las decide la consulta del admin (no hay un contrato de columnas), las celdas
+ * pueden ser anchas y la región tiene su propio scroll (`max-h-96 overflow-auto`) con cabecera
+ * fija. Aquí el scroll horizontal es parte del contenido —un resultado de SELECT ancho—, no un
+ * defecto de maquetación de la pantalla.
  */
 export function StatementResultCard({ statement, database }: StatementResultCardProps) {
   const toast = useToast()

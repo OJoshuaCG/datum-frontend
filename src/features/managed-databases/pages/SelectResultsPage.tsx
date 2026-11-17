@@ -185,6 +185,12 @@ export function SelectResultsPage() {
   )
 }
 
+/**
+ * Una captura de SELECT. La rejilla es una tabla nativa y no un `DataTable` (excepción de
+ * `docs/ui-conventions.md` §6): sus columnas son las del SELECT capturado (dinámicas y posicionales,
+ * sin contrato de columnas) y las celdas son datos del cliente de ancho arbitrario, así que el
+ * scroll horizontal acotado a la rejilla es parte del contenido.
+ */
 function SelectResultItemCard({ item }: { item: MigrationSelectResultItem }) {
   return (
     <Card>
