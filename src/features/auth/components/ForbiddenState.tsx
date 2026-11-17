@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BanIcon } from '@/components/ui'
+import { BanIcon, buttonClassName } from '@/components/ui'
 import { forbiddenCopy } from '../messages'
 
 interface ForbiddenStateProps {
@@ -30,10 +30,7 @@ export function ForbiddenState({ title }: ForbiddenStateProps) {
         <p className="text-sm font-semibold text-foreground">{title ?? copy.title}</p>
         <p className="max-w-md text-sm text-muted-foreground">{copy.body}</p>
       </div>
-      <Link
-        to={copy.actionTo}
-        className="inline-flex h-8 items-center rounded-lg border border-input px-3 text-sm font-medium text-foreground hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <Link to={copy.actionTo} className={buttonClassName({ variant: 'outline', size: 'sm' })}>
         {copy.actionLabel}
       </Link>
     </div>

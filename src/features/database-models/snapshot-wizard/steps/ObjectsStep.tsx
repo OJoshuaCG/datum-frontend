@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Badge } from '@/components/ui'
+import { Badge, Button } from '@/components/ui'
 import { type DumpObjectType } from '@/lib/contracts'
 import { cn } from '@/lib/utils'
 import { objectKey, OBJECT_TYPE_LABELS, summarizeCounts, TYPE_ORDER } from '../logic'
@@ -101,13 +101,14 @@ export function ObjectsStep({ wizard }: { wizard: SnapshotWizard }) {
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
         onClick={wizard.applyPortableShortcut}
-        className="self-start rounded-lg border border-border px-3 py-1.5 text-sm text-foreground hover:bg-primary/10"
       >
         🔓 Excluir rutinas y triggers → baseline portable
-      </button>
+      </Button>
 
       <div>
         <button
@@ -145,7 +146,9 @@ export function ObjectsStep({ wizard }: { wizard: SnapshotWizard }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-muted p-3 text-sm">
-        <span className="text-foreground">Quedan seleccionados: {summarizeCounts(wizard.selectedCounts)}.</span>
+        <span className="text-foreground">
+          Quedan seleccionados: {summarizeCounts(wizard.selectedCounts)}.
+        </span>
         <Badge tone={wizard.schemaPortable ? 'success' : 'warning'}>
           {wizard.schemaPortable ? 'Selección portable' : 'No portable'}
         </Badge>

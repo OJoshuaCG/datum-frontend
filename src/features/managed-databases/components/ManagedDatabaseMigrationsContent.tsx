@@ -11,6 +11,7 @@ import { CAPABILITIES } from '@/lib/contracts'
 import {
   Badge,
   Button,
+  buttonClassName,
   Callout,
   Card,
   CardContent,
@@ -788,7 +789,7 @@ export function ManagedDatabaseMigrationsContent({
                     <>
                       <Link
                         to={`/database-models/${modelId}/migrations?tab=contabilidad`}
-                        className="inline-flex min-h-8 select-none items-center justify-center gap-1.5 rounded-lg border border-input bg-surface px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className={buttonClassName({ variant: 'outline', size: 'sm' })}
                       >
                         Ver el informe del blueprint
                       </Link>
