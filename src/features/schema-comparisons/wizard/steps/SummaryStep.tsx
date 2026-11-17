@@ -1,10 +1,41 @@
-import { Badge, Button, IconButton, RefreshIcon, Spinner } from '@/components/ui'
-import { compositionRows } from '../logic'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, IconButton, RefreshIcon, Spinner } from '@/components/ui'
+import { compositionRows, type CompositionRow } from '../logic'
 import { DiffCompositionChart } from '../DiffCompositionChart'
 import { ErrorRecoveryPanel } from '../ErrorRecoveryPanel'
 import type { SchemaComparisonWizard } from '../use-schema-comparison-wizard'
 
 /** Vista 2 — resumen del diff: conteos, advertencias y las dos ramas de acción mutuamente excluyentes. */
+/** Sin ordenar: `compositionRows` ya entrega los tipos por magnitud total descendente. */
+const COMPOSITION_COLUMNS: ColumnDef<CompositionRow>[] = [
+  {
+    id: 'type',
+    header: 'Tipo',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-foreground">{row.original.label}</span>,
+  },
+  {
+    id: 'new',
+    header: 'Nuevos',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.new || '—'}</span>,
+  },
+  {
+    id: 'modified',
+    header: 'Modificados',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.modified || '—'}</span>
+    ),
+  },
+  {
+    id: 'dropped',
+    header: 'Eliminados',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.dropped || '—'}</span>,
+  },
+]
+
 export function SummaryStep({ wizard }: { wizard: SchemaComparisonWizard }) {
   const { summary } = wizard
 
@@ -98,28 +129,12 @@ export function SummaryStep({ wizard }: { wizard: SchemaComparisonWizard }) {
           <div className="flex flex-col gap-3">
             <p className="text-sm font-medium text-foreground">Composición del diff</p>
             <DiffCompositionChart counts={data.counts} />
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="p-2">Tipo</th>
-                    <th className="p-2">Nuevos</th>
-                    <th className="p-2">Modificados</th>
-                    <th className="p-2">Eliminados</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {compositionRows(data.counts).map((row) => (
-                    <tr key={row.objectType} className="border-t border-border">
-                      <td className="p-2 text-foreground">{row.label}</td>
-                      <td className="p-2 text-muted-foreground">{row.new || '—'}</td>
-                      <td className="p-2 text-muted-foreground">{row.modified || '—'}</td>
-                      <td className="p-2 text-muted-foreground">{row.dropped || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={compositionRows(data.counts)}
+              columns={COMPOSITION_COLUMNS}
+              enableGlobalFilter={false}
+              getRowId={(row) => row.objectType}
+            />
             <p className="text-xs text-muted-foreground">
               Total de sentencias: <strong>{data.item_count}</strong>. La tabla cuenta OBJETOS; un
               mismo objeto puede generar varias sentencias (p. ej. varios <code>ALTER COLUMN</code>

@@ -1,5 +1,9 @@
-import { Badge } from '@/components/ui'
-import type { SchemaComparisonExecutionStatus, SchemaComparisonStatementResult } from '@/lib/contracts'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, DataTable } from '@/components/ui'
+import type {
+  SchemaComparisonExecutionStatus,
+  SchemaComparisonStatementResult,
+} from '@/lib/contracts'
 import { OBJECT_TYPE_LABELS } from './logic'
 
 const STATUS_TONE: Record<SchemaComparisonExecutionStatus, 'success' | 'error' | 'neutral'> = {
@@ -14,6 +18,49 @@ const STATUS_LABEL: Record<SchemaComparisonExecutionStatus, string> = {
   skipped: 'Omitida',
 }
 
+/**
+ * Las columnas no se ordenan: la tabla es el registro de ejecución y su orden (el de aplicación)
+ * es información, que un clic en la cabecera destruiría.
+ */
+const COLUMNS: ColumnDef<SchemaComparisonStatementResult>[] = [
+  {
+    id: 'object_name',
+    header: 'Objeto',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="font-mono text-xs text-foreground">{row.original.object_name}</code>
+    ),
+  },
+  {
+    id: 'object_type',
+    header: 'Tipo',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{OBJECT_TYPE_LABELS[row.original.object_type]}</span>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Estado',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Badge tone={STATUS_TONE[row.original.status]}>{STATUS_LABEL[row.original.status]}</Badge>
+    ),
+  },
+  {
+    id: 'execution_ms',
+    header: 'ms',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.execution_ms}</span>,
+  },
+  {
+    id: 'error',
+    header: 'Error',
+    enableSorting: false,
+    cell: ({ row }) => <span className="text-error">{row.original.error ?? '—'}</span>,
+  },
+]
+
 /** Tabla de resultado por sentencia de `POST .../execute` (Vista 6B). */
 export function ExecutionResultTable({
   statements,
@@ -23,33 +70,11 @@ export function ExecutionResultTable({
   if (statements.length === 0) return null
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="p-2">Objeto</th>
-            <th className="p-2">Tipo</th>
-            <th className="p-2">Estado</th>
-            <th className="p-2">ms</th>
-            <th className="p-2">Error</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statements.map((statement) => (
-            <tr key={statement.item_id} className="border-t border-border">
-              <td className="p-2">
-                <code className="font-mono text-xs text-foreground">{statement.object_name}</code>
-              </td>
-              <td className="p-2 text-muted-foreground">{OBJECT_TYPE_LABELS[statement.object_type]}</td>
-              <td className="p-2">
-                <Badge tone={STATUS_TONE[statement.status]}>{STATUS_LABEL[statement.status]}</Badge>
-              </td>
-              <td className="p-2 text-muted-foreground">{statement.execution_ms}</td>
-              <td className="p-2 text-error">{statement.error ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      data={statements}
+      columns={COLUMNS}
+      enableGlobalFilter={false}
+      getRowId={(statement) => String(statement.item_id)}
+    />
   )
 }
