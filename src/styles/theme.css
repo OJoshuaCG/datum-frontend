@@ -56,7 +56,10 @@
   --foreground: #0f172a;
   --muted-foreground: #475569;
   --border: #e2e8f0;
-  --input: #cbd5e1;
+  /* Borde de controles: WCAG 1.4.11 pide 3:1 contra la superficie (antes #cbd5e1 = 1.5:1, el
+     campo casi desaparecía). Medido: 3.24:1 sobre `--surface`. `--border` sigue suave a propósito:
+     solo separa tarjetas y filas, que no son controles. */
+  --input: #8190a6;
   --ring: #4f46e5;
   --overlay: rgb(15 23 42 / 0.45);
 
@@ -87,7 +90,9 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --primary: #6366f1;
+  /* Antes #6366f1: 3.88:1 como texto sobre `--surface` y 4.22:1 con su foreground, por debajo del
+     4.5:1 de AA. #7174f2 da 4.53:1 y 4.92:1. */
+  --primary: #7174f2;
   --primary-foreground: #0b1120;
   --secondary: #a78bfa;
   --secondary-foreground: #0b1120;
@@ -107,7 +112,8 @@
   --foreground: #e8edf6;
   --muted-foreground: #9aa8c0;
   --border: #243049;
-  --input: #33415c;
+  /* Medido: 3.47:1 sobre `--surface` (antes #33415c = 1.7:1). */
+  --input: #5b7096;
   --ring: #818cf8;
   --overlay: rgb(2 6 16 / 0.6);
 

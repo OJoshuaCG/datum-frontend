@@ -19,7 +19,7 @@ Hay dos capas:
 
 ```css
 :root            { --primary: #4f46e5; … }      /* claro */
-[data-theme='dark'] { --primary: #6366f1; … }   /* oscuro: mismas variables, otros valores */
+[data-theme='dark'] { --primary: #7174f2; … }   /* oscuro: mismas variables, otros valores */
 
 @theme inline {
   --color-primary: var(--primary);              /* genera bg-primary, text-primary, … */
@@ -110,6 +110,10 @@ de línea no justifica bloquear el primer pintado.
 - Los colores interactivos (marca y estados) usan variantes con **contraste WCAG AA
   (≥ 4.5:1)** frente a su `*-foreground`. Si cambias un color, **verifica el contraste**
   (p. ej. con un comprobador WCAG) antes de mergear.
+- `--input` (borde de los controles) cumple **3:1** contra `--surface` (WCAG 1.4.11): claro #8190a6
+  (3.24:1), oscuro #5b7096 (3.47:1). `--border` queda suave a propósito porque solo separa
+  tarjetas y filas, no delimita controles. Medido el 2026-11-17; el resto de pares de texto
+  y `*-foreground` de ambos temas pasa 4.5:1.
 - El **claymorphism** (`shadow-clay`) se reserva a **superficies** (cards/contenedores),
   nunca a controles, porque el bajo contraste rompería la legibilidad.
 - El **foco siempre es visible** (anillo con el token `ring`), definido globalmente en
