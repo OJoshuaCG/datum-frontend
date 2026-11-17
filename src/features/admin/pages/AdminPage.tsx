@@ -15,7 +15,7 @@ import {
 import { PrivilegesPage } from '@/features/privileges'
 import { CharsetCollationOptionsPage } from '@/features/charset-collation-options'
 import { EnvironmentsPanel } from '@/features/environments'
-import { ReleaseChannelsPanel } from '@/features/release-channels'
+import { ChannelMatrixPanel, ReleaseChannelsPanel } from '@/features/release-channels'
 import { ForbiddenState, useCapabilities } from '@/features/auth'
 import { CAPABILITIES } from '@/lib/contracts'
 import { useRotateCrypto } from '../hooks/use-crypto-rotation'
@@ -121,7 +121,12 @@ export function AdminPage() {
       {tab === 'privileges' && <PrivilegesPage />}
       {tab === 'charset-collation' && <CharsetCollationOptionsPage />}
       {tab === 'environments' && <EnvironmentsPanel />}
-      {tab === 'release-channels' && <ReleaseChannelsPanel />}
+      {tab === 'release-channels' && (
+        <>
+          <ReleaseChannelsPanel />
+          <ChannelMatrixPanel />
+        </>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}

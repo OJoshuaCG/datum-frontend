@@ -125,7 +125,7 @@ Los 14 endpoints bajo `/api/v1/integration/*` son la **machine API**: los llama 
 | `GET /integration/databases` | — | Machine API, not consumed by the SPA |
 | `GET /integration/databases/{db_id}/blueprint` | — | Machine API, not consumed by the SPA |
 | `GET /integration/databases/{db_id}/migrations/version` | — | Machine API, not consumed by the SPA |
-| `GET /integration/databases/{db_id}/channels/{channel_slug}` | — | Machine API, not consumed by the SPA (scope `blueprint.read_channel`, v48) |
+| `GET /integration/databases/{db_id}/channels/{channel_slug}` | — | Machine API, not consumed by the SPA (scope `blueprint.read_channel`, v48; el scope SÍ está en el vocabulario del formulario de tokens de integración) |
 | `GET /integration/blueprints/{model_id}/channels/{channel_slug}` | — | Machine API, not consumed by the SPA (scope `blueprint.read_channel`, v48; lectura sin base) |
 | `POST /integration/databases` | — | Machine API, not consumed by the SPA |
 | `POST /integration/engine-users` | — | Machine API, not consumed by the SPA |
@@ -368,6 +368,7 @@ del gateway, no la clasificación de una base de datos.
 | — | `DELETE /environments/{id}` | ⛔ | Exige cero BDs asignadas (409 con el conteo) y no tiene `force`. Por API. |
 | — | `GET /release-channels` | ✅ | `useReleaseChannels` / `ReleaseChannelsPanel` (pestaña «Canales de liberación» de Administración): `DataTable` paginado con modo, entorno enlazado (join en cliente con `useEnvironmentMap`) y conteo de punteros. Leer lo puede cualquier rol (`release_channels.read`). |
 | — | `POST /release-channels` | ✅ | `ReleaseChannelFormModal` (botón «Nuevo canal»): nombre, slug, modo (`manual`/`derived`/`latest`) y entorno enlazado, obligatorio en `derived`. `release_channels.write` (global, solo `security_officer`) + step-up. 409 `release_channel.name_taken` / `slug_taken` y 422 `environment_required` se muestran inline junto al campo (`messages.ts`). |
+| — | `GET /database-models/{id}/channels` (matriz) | ✅ | `ChannelMatrixPanel` (misma pestaña «Canales de liberación», debajo del catálogo): matriz de solo lectura blueprint × canal. Una consulta por blueprint (no hay endpoint agregado) sobre páginas de 10 blueprints; comparte clave de caché con `BlueprintChannelsPanel`. La versión es la referencia de la caché del inventario, no la lectura estricta de integración. Promover sigue en el blueprint. |
 | — | `GET /release-channels/{id}` | ⛔ | El listado ya trae todos los campos del canal. |
 | — | `PATCH /release-channels/{id}` | ✅ | Mismo modal en modo edición: nombre, modo y entorno; el slug se muestra deshabilitado y NO viaja en el body (es inmutable). `environment_id: null` desvincula el entorno. `release_channels.write` + step-up. |
 | — | `DELETE /release-channels/{id}` | ✅ | `DeleteReleaseChannelDialog`. Con `pointer_count > 0` el diálogo exige reescribir el slug y lo manda como `?confirm_slug=` (query); sin punteros, confirmación simple. El 422 `release_channel.confirmation_required` refresca la lista y se muestra en el diálogo; un 404 es éxito idempotente. `release_channels.write` + step-up. |
