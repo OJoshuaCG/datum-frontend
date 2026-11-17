@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   CapabilityCallout,
@@ -15,6 +16,7 @@ import {
   Callout,
   Card,
   CardContent,
+  DataTable,
   Combobox,
   EmptyState,
   ErrorState,
@@ -108,6 +110,62 @@ function isTab(value: string | null): value is Tab {
  * como bloque a todo el ancho cada fase tiene sitio y el estado navegable (pestaña, versión en
  * reconciliación) vive en la URL, así que se puede enlazar y recargar sin perderlo.
  */
+type ApplyRunItem = MigrationApplyResult['results'][number]
+
+/** Sin ordenar: es el orden en que se aplicaron las versiones, y eso es información. */
+const APPLY_RESULT_COLUMNS: ColumnDef<ApplyRunItem>[] = [
+  {
+    id: 'version',
+    header: 'Versión',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs">{row.original.version}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Estado',
+    enableSorting: false,
+    // Vocabulario derivado, no el valor crudo: antes se pintaba `applied`/`failed` en inglés junto
+    // a la pestaña de historial, que ya lo traduce. Dos rótulos para el mismo hecho en una pantalla.
+    cell: ({ row }) => (
+      <Badge tone={historyStatusSpec(row.original.status).tone}>
+        {historyStatusSpec(row.original.status).label}
+      </Badge>
+    ),
+  },
+  {
+    id: 'execution_ms',
+    header: 'ms',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{row.original.execution_ms ?? '—'}</span>
+    ),
+  },
+  {
+    id: 'detail',
+    header: 'Detalle',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const item = row.original
+      return (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {item.resumed && (
+            <Badge tone="info">retomada desde sentencia {item.resumed_from_statement ?? '?'}</Badge>
+          )}
+          {item.failed_at_statement_index != null && (
+            <Badge tone="error">
+              falló en sentencia {item.failed_at_statement_index}
+              {item.statement_total != null ? ` de ${item.statement_total}` : ''}
+            </Badge>
+          )}
+          {item.error && <span className="text-error">{item.error}</span>}
+        </div>
+      )
+    },
+  },
+]
+
 export function ManagedDatabaseMigrationsContent({
   databaseId,
   embedded = false,
@@ -1246,63 +1304,12 @@ export function ManagedDatabaseMigrationsContent({
                           />
                         </div>
                         {lastRun.results.length > 0 ? (
-                          <div className="overflow-x-auto rounded-lg border border-border">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="border-b border-border text-muted-foreground">
-                                  <th className="px-2 py-1.5 font-medium">Versión</th>
-                                  <th className="px-2 py-1.5 font-medium">Estado</th>
-                                  <th className="px-2 py-1.5 font-medium">ms</th>
-                                  <th className="px-2 py-1.5 font-medium">Detalle</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border">
-                                {lastRun.results.map((item) => (
-                                  <tr key={item.migration_id}>
-                                    <td className="px-2 py-1.5">
-                                      <code className="rounded bg-surface-muted px-1.5 py-0.5">
-                                        {item.version}
-                                      </code>
-                                    </td>
-                                    <td className="px-2 py-1.5">
-                                      {/* Vocabulario derivado, no el valor crudo: este ternario
-                                          pintaba `applied`/`failed` en inglés en una UI que es
-                                          toda en español, y quedaba al lado de la pestaña de
-                                          historial que ya lo traduce. Dos rótulos distintos para
-                                          el mismo hecho en la misma pantalla. */}
-                                      <Badge tone={historyStatusSpec(item.status).tone}>
-                                        {historyStatusSpec(item.status).label}
-                                      </Badge>
-                                    </td>
-                                    <td className="px-2 py-1.5 text-muted-foreground">
-                                      {item.execution_ms ?? '—'}
-                                    </td>
-                                    <td className="px-2 py-1.5">
-                                      <div className="flex flex-wrap items-center gap-1.5">
-                                        {item.resumed && (
-                                          <Badge tone="info">
-                                            retomada desde sentencia{' '}
-                                            {item.resumed_from_statement ?? '?'}
-                                          </Badge>
-                                        )}
-                                        {item.failed_at_statement_index != null && (
-                                          <Badge tone="error">
-                                            falló en sentencia {item.failed_at_statement_index}
-                                            {item.statement_total != null
-                                              ? ` de ${item.statement_total}`
-                                              : ''}
-                                          </Badge>
-                                        )}
-                                        {item.error && (
-                                          <span className="text-error">{item.error}</span>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <DataTable
+                            data={lastRun.results}
+                            columns={APPLY_RESULT_COLUMNS}
+                            enableGlobalFilter={false}
+                            getRowId={(item) => String(item.migration_id)}
+                          />
                         ) : (
                           <p className="text-xs text-muted-foreground">
                             Sin resultados por migración.
