@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { notifyMutationError } from '@/features/auth'
 import type { QueryParams } from '@/lib/api/client'
 import { toApiError } from '@/lib/api/errors'
@@ -22,6 +28,21 @@ export function useBlueprintChannels(modelId: number, enabled = true) {
     queryKey: queryKeys.blueprintChannels.list(modelId),
     queryFn: ({ signal }) => listBlueprintChannels(modelId, signal),
     enabled,
+  })
+}
+
+/**
+ * Los canales de VARIOS blueprints a la vez, para la matriz blueprint × canal. No existe un
+ * endpoint agregado, así que es una consulta por blueprint; comparten la clave con
+ * `useBlueprintChannels`, de modo que abrir un blueprint después reutiliza lo ya cargado. Solo lee
+ * la referencia de la caché del inventario (no abre conexiones a ninguna base).
+ */
+export function useBlueprintChannelsOf(modelIds: readonly number[]) {
+  return useQueries({
+    queries: modelIds.map((modelId) => ({
+      queryKey: queryKeys.blueprintChannels.list(modelId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => listBlueprintChannels(modelId, signal),
+    })),
   })
 }
 
