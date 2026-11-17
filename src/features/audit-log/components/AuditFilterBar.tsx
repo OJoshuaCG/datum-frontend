@@ -28,6 +28,19 @@ interface Draft {
   to: string
 }
 
+/** Cuántos filtros de la sección «Más filtros» tienen valor en el borrador. */
+function countAdvancedFilters(draft: Draft): number {
+  const advancedValues: string[] = [
+    draft.actor_type,
+    draft.admin_username.trim(),
+    draft.status.trim(),
+    draft.from,
+    draft.to,
+    draft.request_id.trim(),
+  ]
+  return advancedValues.filter((value) => value !== '').length
+}
+
 function draftFrom(filters: AuditLogFilters): Draft {
   return {
     action: filters.action ?? '',
@@ -70,7 +83,15 @@ export interface AuditFilterBarProps {
  */
 export function AuditFilterBar({ filters, onApply, onClear }: AuditFilterBarProps) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(filters))
+  // Arranca abierta si la URL ya trae un filtro avanzado o el rango es inválido: ocultar un
+  // filtro activo o su error dejaría al usuario sin saber por qué la lista viene filtrada.
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(
+    () =>
+      countAdvancedFilters(draftFrom(filters)) > 0 ||
+      isInvalidRange(toFilters(filters, draftFrom(filters))),
+  )
   const presetsId = useId()
+  const advancedId = useId()
   const statusId = useId()
   const actorTypeId = useId()
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
@@ -78,6 +99,7 @@ export function AuditFilterBar({ filters, onApply, onClear }: AuditFilterBarProp
 
   const next = toFilters(filters, draft)
   const invalidRange = isInvalidRange(next)
+  const activeAdvancedCount = countAdvancedFilters(draft)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -130,77 +152,100 @@ export function AuditFilterBar({ filters, onApply, onClear }: AuditFilterBarProp
           hint="Exacta, o prefijo si termina en *."
           onChange={(event) => set('action', event.target.value)}
         />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={actorTypeId} className="text-sm font-medium text-foreground">
-            Tipo de actor
-          </label>
-          <select
-            id={actorTypeId}
-            value={draft.actor_type}
-            onChange={(event) => set('actor_type', event.target.value as AuditActorType | '')}
-            className={SELECT_CLASSES}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-expanded={advancedOpen}
+            aria-controls={advancedId}
+            onClick={() => setAdvancedOpen((previous) => !previous)}
           >
-            <option value="">Todos</option>
-            {AUDIT_ACTOR_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {AUDIT_ACTOR_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
+            Más filtros
+            {activeAdvancedCount > 0 &&
+              ` (${activeAdvancedCount} ${activeAdvancedCount === 1 ? 'activo' : 'activos'})`}
+          </Button>
         </div>
-        <Input
-          label="Usuario"
-          value={draft.admin_username}
-          maxLength={AUDIT_LIMITS.username}
-          placeholder="ana"
-          hint="Username exacto. Un token figura como token:<id público>."
-          onChange={(event) => set('admin_username', event.target.value)}
-        />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={statusId} className="text-sm font-medium text-foreground">
-            Estado
-          </label>
-          <select
-            id={statusId}
-            value={draft.status}
-            onChange={(event) => set('status', event.target.value)}
-            className={SELECT_CLASSES}
-          >
-            <option value="">Todos</option>
-            {Object.entries(AUDIT_STATUS).map(([value, { label }]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-            {/* Un estado que llegó por URL y la lista no conoce se conserva como opción. */}
-            {draft.status && !(draft.status in AUDIT_STATUS) && (
-              <option value={draft.status}>{draft.status}</option>
-            )}
-          </select>
+        {/* `hidden` y no render condicional: los campos siguen montados, así el borrador se conserva
+            y se sigue enviando al aplicar aunque la sección esté cerrada. */}
+        <div id={advancedId} hidden={!advancedOpen}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={actorTypeId} className="text-sm font-medium text-foreground">
+                Tipo de actor
+              </label>
+              <select
+                id={actorTypeId}
+                value={draft.actor_type}
+                onChange={(event) => set('actor_type', event.target.value as AuditActorType | '')}
+                className={SELECT_CLASSES}
+              >
+                <option value="">Todos</option>
+                {AUDIT_ACTOR_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {AUDIT_ACTOR_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Usuario"
+              value={draft.admin_username}
+              maxLength={AUDIT_LIMITS.username}
+              placeholder="ana"
+              hint="Username exacto. Un token figura como token:<id público>."
+              onChange={(event) => set('admin_username', event.target.value)}
+            />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={statusId} className="text-sm font-medium text-foreground">
+                Estado
+              </label>
+              <select
+                id={statusId}
+                value={draft.status}
+                onChange={(event) => set('status', event.target.value)}
+                className={SELECT_CLASSES}
+              >
+                <option value="">Todos</option>
+                {Object.entries(AUDIT_STATUS).map(([value, { label }]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+                {/* Un estado que llegó por URL y la lista no conoce se conserva como opción. */}
+                {draft.status && !(draft.status in AUDIT_STATUS) && (
+                  <option value={draft.status}>{draft.status}</option>
+                )}
+              </select>
+            </div>
+            <Input
+              label="Desde"
+              type="datetime-local"
+              value={draft.from}
+              hint="Hora local, inclusive."
+              onChange={(event) => set('from', event.target.value)}
+            />
+            <Input
+              label="Hasta"
+              type="datetime-local"
+              value={draft.to}
+              hint={invalidRange ? undefined : 'Hora local, sin incluir.'}
+              error={invalidRange ? '«Hasta» tiene que ser posterior a «Desde».' : undefined}
+              onChange={(event) => set('to', event.target.value)}
+            />
+            <Input
+              label="Request ID"
+              value={draft.request_id}
+              maxLength={AUDIT_LIMITS.requestId}
+              className="font-mono"
+              hint="Todo lo que dejó un mismo request."
+              onChange={(event) => set('request_id', event.target.value)}
+            />
+          </div>
         </div>
-        <Input
-          label="Desde"
-          type="datetime-local"
-          value={draft.from}
-          hint="Hora local, inclusive."
-          onChange={(event) => set('from', event.target.value)}
-        />
-        <Input
-          label="Hasta"
-          type="datetime-local"
-          value={draft.to}
-          hint={invalidRange ? undefined : 'Hora local, sin incluir.'}
-          error={invalidRange ? '«Hasta» tiene que ser posterior a «Desde».' : undefined}
-          onChange={(event) => set('to', event.target.value)}
-        />
-        <Input
-          label="Request ID"
-          value={draft.request_id}
-          maxLength={AUDIT_LIMITS.requestId}
-          className="font-mono"
-          hint="Todo lo que dejó un mismo request."
-          onChange={(event) => set('request_id', event.target.value)}
-        />
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">

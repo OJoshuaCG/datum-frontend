@@ -147,6 +147,8 @@ describe('AuditLogPage', () => {
     expect(backend.last()?.has('action')).toBe(false)
 
     await userEvent.type(screen.getByLabelText('Acción'), 'gateway_user.*')
+    // Los filtros avanzados viven en una sección plegada: se abre antes de escribir en ellos.
+    await userEvent.click(screen.getByRole('button', { name: /Más filtros/ }))
     await userEvent.selectOptions(screen.getByLabelText('Tipo de actor'), 'api_token')
     await userEvent.selectOptions(screen.getByLabelText('Estado'), 'denied')
     await userEvent.type(screen.getByLabelText('Request ID'), '4f0c9a')
@@ -189,6 +191,25 @@ describe('AuditLogPage', () => {
     expect(first?.get('target_id')).toBe('9')
     expect(first?.get('page')).toBe('2')
     expect(screen.getByLabelText('Acción')).toHaveValue('access.*')
+  })
+
+  it('«Más filtros» arranca abierta si un filtro avanzado ya está en la URL, y cerrada si no', async () => {
+    mockBackend()
+    const { unmount } = renderWithProviders(<AuditLogPage />, { route: '/audit-log' })
+    await screen.findAllByText('gateway_user.access_set')
+    const closedToggle = screen.getByRole('button', { name: /Más filtros/ })
+    expect(closedToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('Request ID')).not.toBeVisible()
+    unmount()
+
+    renderWithProviders(<AuditLogPage />, { route: '/audit-log?request_id=4f0c9a' })
+    await screen.findAllByText('gateway_user.access_set')
+    expect(screen.getByRole('button', { name: /Más filtros \(1 activo\)/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByLabelText('Request ID')).toBeVisible()
+    expect(screen.getByLabelText('Request ID')).toHaveValue('4f0c9a')
   })
 
   it('un rango invertido se avisa y no se pide', async () => {
