@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Badge, Button, ErrorState, Modal, Pagination, Spinner } from '@/components/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Badge, Button, DataTable, ErrorState, Modal, Pagination, Spinner } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import {
   CAPABILITIES,
@@ -177,6 +178,76 @@ export function MonitorStep({ wizard }: { wizard: CollationConversionWizard }) {
     ? loadedItems.filter((item) => item.status === 'error' || isFailedGrantsSkip(item)).length
     : null
 
+  // Sin ordenar ni filtrar en el cliente: la tabla muestra UNA página del servidor, en el orden de
+  // ejecución (`seq`); reordenarla dejaría una página que no corresponde a nada. La paginación es
+  // la de abajo (`Pagination`), por eso no se pasa `clientPageSize`.
+  const itemColumns: ColumnDef<CollationConversionItemOut>[] = [
+    {
+      id: 'seq',
+      header: 'Seq',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.seq}</span>,
+    },
+    {
+      id: 'type',
+      header: 'Tipo',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-foreground">{objectTypeLabel(row.original.object_type)}</span>
+      ),
+    },
+    {
+      id: 'name',
+      header: 'Nombre',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-foreground">{row.original.object_name}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Estado',
+      enableSorting: false,
+      cell: ({ row }) => <ItemStatusCell item={row.original} />,
+    },
+    {
+      id: 'duration',
+      header: 'Duración',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{formatDuration(row.original.execution_ms)}</span>
+      ),
+    },
+    {
+      id: 'detail',
+      header: 'Detalle',
+      enableSorting: false,
+      cell: ({ row }) => {
+        const item = row.original
+        return (
+          <div className="flex flex-col gap-1 text-muted-foreground">
+            {mode === 'columns' && item.columns_affected != null && (
+              <span>{item.columns_affected} columnas</span>
+            )}
+            {item.grants_captured != null && (
+              <span>
+                {item.grants_reapplied ?? 0} de {item.grants_captured} privilegios reaplicados
+              </span>
+            )}
+            {/* La diferencia sin `grants_error` es NORMAL, y decirlo solo en un `title` dejaba el
+                «3 de 5» leyéndose como pérdida de privilegios para quien no pasa el puntero por
+                encima. Visible, y solo cuando la diferencia existe. */}
+            {item.grants_captured != null &&
+              (item.grants_reapplied ?? 0) < item.grants_captured &&
+              !item.grants_error && (
+                <span className="text-xs">
+                  Es normal: la reaplicación omite grants vacíos o sin GRANT OPTION.
+                </span>
+              )}
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-5">
       {dropWithoutCreateItem && (
@@ -231,7 +302,9 @@ export function MonitorStep({ wizard }: { wizard: CollationConversionWizard }) {
               Tablas
             </span>
             <span className="text-lg font-semibold text-foreground">
-              {tablesTotal !== null ? `${tablesDone} de ${tablesTotal}` : `${tablesDone} procesadas`}
+              {tablesTotal !== null
+                ? `${tablesDone} de ${tablesTotal}`
+                : `${tablesDone} procesadas`}
             </span>
           </div>
           {showObjectsCounter && (
@@ -333,61 +406,12 @@ export function MonitorStep({ wizard }: { wizard: CollationConversionWizard }) {
           <ErrorState error={items.error} title="No se pudieron cargar los pasos" />
         ) : loadedItems.length > 0 ? (
           <>
-            <div className="overflow-x-auto rounded-card border border-border">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Seq</th>
-                    <th className="px-3 py-2 font-semibold">Tipo</th>
-                    <th className="px-3 py-2 font-semibold">Nombre</th>
-                    <th className="px-3 py-2 font-semibold">Estado</th>
-                    <th className="px-3 py-2 font-semibold">Duración</th>
-                    <th className="px-3 py-2 font-semibold">Detalle</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadedItems.map((item) => (
-                    <tr key={item.id} className="border-b border-border align-top last:border-0">
-                      <td className="px-3 py-2 text-muted-foreground">{item.seq}</td>
-                      <td className="px-3 py-2 text-foreground">
-                        {objectTypeLabel(item.object_type)}
-                      </td>
-                      <td className="px-3 py-2 text-foreground">{item.object_name}</td>
-                      <td className="px-3 py-2">
-                        <ItemStatusCell item={item} />
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {formatDuration(item.execution_ms)}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        <div className="flex flex-col gap-1">
-                          {mode === 'columns' && item.columns_affected != null && (
-                            <span>{item.columns_affected} columnas</span>
-                          )}
-                          {item.grants_captured != null && (
-                            <span>
-                              {item.grants_reapplied ?? 0} de {item.grants_captured} privilegios
-                              reaplicados
-                            </span>
-                          )}
-                          {/* La diferencia sin `grants_error` es NORMAL, y decirlo solo en un
-                              `title` dejaba el «3 de 5» leyéndose como pérdida de privilegios
-                              para quien no pasa el puntero por encima. Visible, y solo cuando
-                              la diferencia existe. */}
-                          {item.grants_captured != null &&
-                            (item.grants_reapplied ?? 0) < item.grants_captured &&
-                            !item.grants_error && (
-                              <span className="text-xs">
-                                Es normal: la reaplicación omite grants vacíos o sin GRANT OPTION.
-                              </span>
-                            )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={loadedItems}
+              columns={itemColumns}
+              enableGlobalFilter={false}
+              getRowId={(item) => String(item.id)}
+            />
             <Pagination
               page={wizard.itemsPage}
               pages={items.data?.pagination.pages ?? 1}

@@ -1,8 +1,10 @@
 import { Fragment, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Badge,
   Checkbox,
   ChevronRightIcon,
+  DataTable,
   EmptyState,
   ErrorState,
   IconButton,
@@ -29,6 +31,11 @@ import type { CollationConversionWizard } from '../use-collation-conversion-wiza
  * convertir. El hook YA preselecciona tablas/objetos desactualizados la primera vez que llega el
  * inventario de un job (§9.1) — este componente solo refleja `checkedTables`/`checkedObjects`,
  * nunca reimplementa esa lógica.
+ *
+ * Las tablas planas (resumen, universal, objetos congelados) usan `DataTable`. Se queda con
+ * `<table>` propio SOLO la de modo `columns` (`renderColumnsTables`): cada fila expande una
+ * subtabla de columnas anidada, y `DataTable` no modela filas expandibles. Mismo caso que
+ * `EngineUsersPanel`.
  */
 
 /** Traducción del motor a la etiqueta que ve el operador — nunca el string crudo del contrato. */
@@ -70,6 +77,9 @@ function formatGroupCombo(group: CollationGroupOut): string {
   return group.collation !== null ? `${group.charset} · ${group.collation}` : group.charset
 }
 
+/** Grupo del resumen con una clave por posición, porque la combinación puede repetirse. */
+type SummaryRow = CollationGroupOut & { rowKey: string }
+
 /** Angosta `CollationObjectOut.object_type` (string suelto del contrato) a los 5 tipos congelados. */
 function isFrozenObject(
   object: CollationObjectOut,
@@ -91,35 +101,53 @@ export function InventoryStep({ wizard }: { wizard: CollationConversionWizard })
     })
   }
 
-  const renderSummary = (data: CollationInventoryOut) => (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Resumen por combinación
-      </p>
-      <div className="overflow-x-auto rounded-card border border-border">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-3 py-2 font-semibold">Charset / collation</th>
-              <th className="px-3 py-2 font-semibold">Tablas</th>
-              {data.mode === 'columns' && <th className="px-3 py-2 font-semibold">Columnas</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {data.summary.map((group, index) => (
-              <tr key={index} className="border-b border-border last:border-0">
-                <td className="px-3 py-2 text-foreground">{formatGroupCombo(group)}</td>
-                <td className="px-3 py-2 text-muted-foreground">{group.table_count}</td>
-                {data.mode === 'columns' && (
-                  <td className="px-3 py-2 text-muted-foreground">{group.column_count ?? '—'}</td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  const renderSummary = (data: CollationInventoryOut) => {
+    // En modo `columns` (PostgreSQL) hay una columna más: cuántas columnas tiene cada grupo.
+    const summaryColumns: ColumnDef<SummaryRow>[] = [
+      {
+        id: 'combo',
+        header: 'Charset / collation',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-foreground">{formatGroupCombo(row.original)}</span>
+        ),
+      },
+      {
+        id: 'tables',
+        header: 'Tablas',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.table_count}</span>
+        ),
+      },
+      ...(data.mode === 'columns'
+        ? [
+            {
+              id: 'columns',
+              header: 'Columnas',
+              enableSorting: false,
+              cell: ({ row }) => (
+                <span className="text-muted-foreground">{row.original.column_count ?? '—'}</span>
+              ),
+            } satisfies ColumnDef<SummaryRow>,
+          ]
+        : []),
+    ]
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Resumen por combinación
+        </p>
+        <DataTable
+          data={data.summary.map((group, index) => ({ ...group, rowKey: String(index) }))}
+          columns={summaryColumns}
+          enableGlobalFilter={false}
+          // El contrato no garantiza combinaciones únicas: la posición es la clave estable.
+          getRowId={(group) => group.rowKey}
+        />
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderNotes = (notes: readonly string[]) => {
     if (notes.length === 0) return null
@@ -157,45 +185,118 @@ export function InventoryStep({ wizard }: { wizard: CollationConversionWizard })
     if (tables.length === 0) {
       return <EmptyState title="Sin tablas" description="Esta base no tiene tablas registradas." />
     }
+    const tableColumns: ColumnDef<CollationTableOut>[] = [
+      {
+        id: 'name',
+        header: 'Tabla',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Checkbox
+            label={row.original.name}
+            checked={wizard.checkedTables.has(row.original.name)}
+            onChange={() => wizard.toggleTable(row.original.name)}
+          />
+        ),
+      },
+      {
+        id: 'combo',
+        header: 'Charset / collation',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.charset ?? '—'} · {row.original.collation ?? '—'}
+          </span>
+        ),
+      },
+      {
+        id: 'mismatched',
+        header: 'Columnas con discrepancia',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.mismatched_columns}</span>
+        ),
+      },
+      {
+        id: 'state',
+        header: 'Estado',
+        enableSorting: false,
+        cell: ({ row }) =>
+          !row.original.needs_conversion ? <Badge tone="success">✓ al día</Badge> : null,
+      },
+    ]
     return (
-      <div className="overflow-x-auto rounded-card border border-border">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-3 py-2 font-semibold">Tabla</th>
-              <th className="px-3 py-2 font-semibold">Charset / collation</th>
-              <th className="px-3 py-2 font-semibold">Columnas con discrepancia</th>
-              <th className="px-3 py-2 font-semibold">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tables.map((table) => (
-              <tr key={table.name} className="border-b border-border last:border-0">
-                <td className="px-3 py-2">
-                  <Checkbox
-                    label={table.name}
-                    checked={wizard.checkedTables.has(table.name)}
-                    onChange={() => wizard.toggleTable(table.name)}
-                  />
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {table.charset ?? '—'} · {table.collation ?? '—'}
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">{table.mismatched_columns}</td>
-                <td className="px-3 py-2">
-                  {!table.needs_conversion && <Badge tone="success">✓ al día</Badge>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={[...tables]}
+        columns={tableColumns}
+        enableGlobalFilter={false}
+        getRowId={(table) => table.name}
+      />
     )
   }
 
   const renderFrozenObjects = (allObjects: readonly CollationObjectOut[]) => {
     const frozenObjects = allObjects.filter(isFrozenObject)
     if (frozenObjects.length === 0) return null
+    const frozenColumns: ColumnDef<CollationObjectOut & { object_type: FrozenObjectType }>[] = [
+      {
+        id: 'name',
+        header: 'Objeto',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const object = row.original
+          const ref = { object_type: object.object_type, name: object.name }
+          const isChecked = wizard.checkedObjects.has(objectKey(ref))
+          return (
+            <div>
+              <Checkbox
+                label={object.name}
+                checked={isChecked}
+                onChange={() => wizard.toggleObject(ref)}
+              />
+              {object.is_outdated && !isChecked && (
+                <p className="mt-1 max-w-xs text-xs text-warning">
+                  Sigue con la collation vieja: es exactamente el caso que esta herramienta existe
+                  para evitar.
+                </p>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'type',
+        header: 'Tipo',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-foreground">{FROZEN_TYPE_LABELS[row.original.object_type]}</span>
+        ),
+      },
+      {
+        id: 'connection',
+        header: 'Conexión',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.collation_connection ?? '—'}</span>
+        ),
+      },
+      {
+        id: 'database',
+        header: 'Base de datos',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.object_type === 'view' ? '—' : (row.original.database_collation ?? '—')}
+          </span>
+        ),
+      },
+      {
+        id: 'state',
+        header: 'Estado',
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.is_outdated ? <Badge tone="warning">desactualizado</Badge> : null,
+      },
+    ]
     return (
       <div className="flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -205,56 +306,12 @@ export function InventoryStep({ wizard }: { wizard: CollationConversionWizard })
           Estos objetos guardan la collation con la que fueron creados. Si no se recrean, seguirán
           comparando texto en la collation vieja y producirán errores en producción.
         </div>
-        <div className="overflow-x-auto rounded-card border border-border">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Objeto</th>
-                <th className="px-3 py-2 font-semibold">Tipo</th>
-                <th className="px-3 py-2 font-semibold">Conexión</th>
-                <th className="px-3 py-2 font-semibold">Base de datos</th>
-                <th className="px-3 py-2 font-semibold">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {frozenObjects.map((object) => {
-                const ref = { object_type: object.object_type, name: object.name }
-                const key = objectKey(ref)
-                const isChecked = wizard.checkedObjects.has(key)
-                const showStaleWarning = object.is_outdated && !isChecked
-                return (
-                  <tr key={key} className="border-b border-border align-top last:border-0">
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        label={object.name}
-                        checked={isChecked}
-                        onChange={() => wizard.toggleObject(ref)}
-                      />
-                      {showStaleWarning && (
-                        <p className="mt-1 max-w-xs text-xs text-warning">
-                          Sigue con la collation vieja: es exactamente el caso que esta herramienta
-                          existe para evitar.
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-foreground">
-                      {FROZEN_TYPE_LABELS[object.object_type]}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {object.collation_connection ?? '—'}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {object.object_type === 'view' ? '—' : (object.database_collation ?? '—')}
-                    </td>
-                    <td className="px-3 py-2">
-                      {object.is_outdated && <Badge tone="warning">desactualizado</Badge>}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={frozenObjects}
+          columns={frozenColumns}
+          enableGlobalFilter={false}
+          getRowId={(object) => objectKey({ object_type: object.object_type, name: object.name })}
+        />
       </div>
     )
   }
@@ -327,7 +384,10 @@ export function InventoryStep({ wizard }: { wizard: CollationConversionWizard })
                           label={isExpanded ? 'Ocultar columnas' : 'Ver columnas'}
                           icon={
                             <ChevronRightIcon
-                              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-90')}
+                              className={cn(
+                                'h-3.5 w-3.5 transition-transform',
+                                isExpanded && 'rotate-90',
+                              )}
                             />
                           }
                           variant="ghost"
