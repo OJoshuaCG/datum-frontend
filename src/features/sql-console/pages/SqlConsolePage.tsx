@@ -374,13 +374,14 @@ function ServerSqlConsole({ server, tab, executeGuard, onGoToConsole }: ServerSq
               bytes
               {sqlConsole.sqlTooLarge && ' — recortá la consulta o dividila en varios lotes.'}
             </span>
-            <button
-              type="button"
-              className="rounded px-2 py-1 underline hover:bg-primary/10 hover:text-primary"
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={showOptions}
               onClick={() => setShowOptions((current) => !current)}
             >
               {showOptions ? 'Ocultar opciones' : 'Opciones de ejecución'}
-            </button>
+            </Button>
           </div>
 
           {showOptions && (
@@ -453,6 +454,12 @@ function ServerSqlConsole({ server, tab, executeGuard, onGoToConsole }: ServerSq
             >
               Solo analizar
             </Button>
+            {preview && <Badge tone="neutral">Ejecuta como {preview.run_as}</Badge>}
+          </div>
+
+          {/* Los textos de estado van en su propia fila: junto a los botones competían con ellos y
+              empujaban la fila a dos líneas. */}
+          <div className="flex flex-col gap-1.5 empty:hidden">
             {sqlConsole.isAnalyzing && (
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Spinner className="h-4 w-4" /> Clasificando la consulta…
@@ -470,7 +477,6 @@ function ServerSqlConsole({ server, tab, executeGuard, onGoToConsole }: ServerSq
                 {formatCountdown(sqlConsole.rateLimitCooldownMs)}.
               </span>
             )}
-            {preview && <Badge tone="neutral">Ejecuta como {preview.run_as}</Badge>}
           </div>
 
           {sqlConsole.systemDatabaseBlocked && (
@@ -484,13 +490,14 @@ function ServerSqlConsole({ server, tab, executeGuard, onGoToConsole }: ServerSq
           {sqlConsole.notice && (
             <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               <span>{sqlConsole.notice}</span>
-              <button
-                type="button"
-                className="shrink-0 rounded px-2 text-xs underline hover:bg-primary/10"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
                 onClick={sqlConsole.dismissNotice}
               >
                 Entendido
-              </button>
+              </Button>
             </div>
           )}
 
