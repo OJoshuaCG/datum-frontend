@@ -10,6 +10,7 @@ import {
   buildDefaultExportSpec,
   buildExportControls,
   buildExportSpecPayload,
+  buildQuickStructureSpec,
   coerceOptionValue,
   evaluateExportMatrix,
   expandForbidEntry,
@@ -516,6 +517,38 @@ describe('normalizeSpecForConstraints', () => {
 })
 
 // ── Spec inicial ────────────────────────────────────────────────────────────────
+describe('buildQuickStructureSpec', () => {
+  it('arma toda la estructura en SQL, sin datos y sin comentarios de cabecera', () => {
+    const spec = buildQuickStructureSpec(makeCapabilities())
+
+    expect(spec).not.toBeNull()
+    expect(spec?.format).toBe('sql')
+    expect(spec?.selection.mode).toBe('all')
+    expect(spec?.data.mode).toBe('none')
+    expect(spec?.structure.scope_ddl).toBe('NONE')
+    expect(spec?.structure.entity_ddl).toBe('CREATE')
+    expect(spec?.sanitize.script_comments).toBe(false)
+  })
+
+  it('no se ofrece si el motor no declara el formato sql', () => {
+    const capabilities = makeCapabilities({
+      formats: [
+        { name: 'csv', supports_structure: false, supports_data: true, one_file_per_table: true },
+      ],
+    })
+
+    expect(buildQuickStructureSpec(capabilities)).toBeNull()
+  })
+
+  it('el payload resultante no incumple la matriz de compatibilidad', () => {
+    const capabilities = makeCapabilities()
+    const spec = buildQuickStructureSpec(capabilities)
+
+    expect(spec).not.toBeNull()
+    expect(evaluateExportMatrix(spec as ExportSpec, capabilities).violations).toEqual([])
+  })
+})
+
 describe('buildDefaultExportSpec', () => {
   it('resuelve cada default desde capabilities, no desde el esqueleto', () => {
     const spec = buildDefaultExportSpec(makeCapabilities())

@@ -480,6 +480,43 @@ export function buildDefaultExportSpec(capabilities: ExportCapabilities): Export
   return spec
 }
 
+/** Formato del atajo «Exportación rápida»: el único que transporta estructura completa. */
+export const QUICK_EXPORT_FORMAT = 'sql'
+
+/**
+ * Spec del atajo «Exportación rápida»: toda la estructura de la base en SQL, sin datos y sin
+ * comentarios de cabecera.
+ *
+ * `script_comments: false` quita la fecha del volcado: dos exportaciones de un esquema sin cambios
+ * salen idénticas byte a byte, que es lo que hace útil versionarlas en git.
+ *
+ * Devuelve `null` si el motor no ofrece el formato o si la combinación incumple la matriz de
+ * compatibilidad: en ese caso el atajo no se ofrece y el usuario sigue por el asistente completo,
+ * donde el control culpable se puede corregir. Los valores se escriben sobre los defaults del
+ * motor y se normalizan igual que cualquier otro cambio del asistente, para no enviar nunca algo
+ * que la matriz prohíbe.
+ */
+export function buildQuickStructureSpec(capabilities: ExportCapabilities): ExportSpec | null {
+  const sqlIsOffered = capabilities.formats.some((format) => format.name === QUICK_EXPORT_FORMAT)
+  if (!sqlIsOffered) return null
+
+  let spec = buildDefaultExportSpec(capabilities)
+  spec = writeSpecValue(spec, 'format', QUICK_EXPORT_FORMAT)
+  spec = writeSpecValue(spec, 'selection.mode', 'all')
+  spec = writeSpecValue(spec, 'data.mode', 'none')
+  spec = writeSpecValue(spec, 'structure.scope_ddl', 'NONE')
+  spec = writeSpecValue(spec, 'structure.entity_ddl', 'CREATE')
+  spec = writeSpecValue(spec, 'sanitize.script_comments', false)
+
+  const normalized = normalizeSpecForConstraints(
+    spec,
+    capabilities,
+    evaluateExportMatrix(spec, capabilities),
+  )
+  const hasViolations = evaluateExportMatrix(normalized, capabilities).violations.length > 0
+  return hasViolations ? null : normalized
+}
+
 // ── Los dos conjuntos: estructura y datos ───────────────────────────────────────
 /**
  * Modo "solo datos": con `scope_ddl` y `entity_ddl` ambos en `NONE` la restricción `data ⊆

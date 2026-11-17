@@ -35,6 +35,7 @@ import {
   buildDefaultExportSpec,
   buildExportControls,
   buildExportSpecPayload,
+  buildQuickStructureSpec,
   coerceOptionValue,
   evaluateExportMatrix,
   exportObjectKey,
@@ -511,6 +512,27 @@ export function useDatabaseExportWizard(options: WizardOptions): DatabaseExportW
    * ya creado en vez de un segundo plan huérfano. Va por `randomUuid` y no por `crypto.randomUUID`
    * directo porque este gateway también se sirve sobre HTTP plano, donde el segundo no existe.
    */
+  const submitPlanPayload = useCallback(
+    (payload: ExportSpecPayload, nextStep: ExportWizardStep) => {
+      const fingerprint = JSON.stringify(payload)
+      const key = planAttempt?.fingerprint === fingerprint ? planAttempt.key : randomUuid()
+      setPlanAttempt({ key, fingerprint })
+
+      createPlanMutation.mutate(
+        { ...payload, idempotency_key: key },
+        {
+          onSuccess: (summary) => {
+            resetJobScopedState()
+            setJobId(summary.id)
+            setStep(nextStep)
+          },
+          onError: (error) => handleFailure(error, 'crear el plan'),
+        },
+      )
+    },
+    [planAttempt, createPlanMutation, resetJobScopedState, handleFailure],
+  )
+
   const createPlan = useCallback(() => {
     // El plan ya existe: volver al paso 1, cambiar algo y seguir NO crea otro. El `preview`
     // reemplaza el spec del plan, y recrearlo aquí llamaría a `resetJobScopedState`, que borraría
@@ -521,22 +543,40 @@ export function useDatabaseExportWizard(options: WizardOptions): DatabaseExportW
     }
     if (!specPayload) return
 
-    const fingerprint = JSON.stringify(specPayload)
-    const key = planAttempt?.fingerprint === fingerprint ? planAttempt.key : randomUuid()
-    setPlanAttempt({ key, fingerprint })
+    submitPlanPayload(specPayload, 'objects')
+  }, [jobId, specPayload, submitPlanPayload])
 
-    createPlanMutation.mutate(
-      { ...specPayload, idempotency_key: key },
-      {
-        onSuccess: (summary) => {
-          resetJobScopedState()
-          setJobId(summary.id)
-          setStep('objects')
-        },
-        onError: (error) => handleFailure(error, 'crear el plan'),
-      },
-    )
-  }, [jobId, specPayload, planAttempt, createPlanMutation, resetJobScopedState, handleFailure])
+  /**
+   * Spec del atajo «Exportación rápida», o `null` si el motor no lo permite. Se calcula una vez por
+   * capacidades y no depende de lo que el usuario haya tocado en el asistente.
+   */
+  const quickStructureSpec = useMemo<ExportSpec | null>(
+    () => (capabilitiesData ? buildQuickStructureSpec(capabilitiesData) : null),
+    [capabilitiesData],
+  )
+
+  /**
+   * Atajo: crea el plan con «toda la estructura en SQL» y salta directo a la confirmación, sin pasar
+   * por objetos ni opciones. La confirmación sigue siendo la misma de siempre —preview autoritativo,
+   * nombre re-tecleado y token—, así que el atajo acorta el camino hasta el 🔌 pero no la barrera.
+   * «Atrás» desde la confirmación lleva a las opciones: es la salida para quien quiera personalizar.
+   */
+  const startQuickStructureExport = useCallback(() => {
+    if (!quickStructureSpec || !capabilitiesData) return
+
+    setSpec(quickStructureSpec)
+    setSelectionScopeState('all')
+    setDataScopeState('none')
+    setStructureChecked(new Map())
+    setDataChecked(new Map())
+    setConfirmTargetName('')
+
+    if (jobId != null) {
+      setStep('confirm')
+      return
+    }
+    submitPlanPayload(buildExportSpecPayload(quickStructureSpec, capabilitiesData), 'confirm')
+  }, [quickStructureSpec, capabilitiesData, jobId, submitPlanPayload])
 
   // ── Confirmar y ejecutar ──────────────────────────────────────────────────────
   const nameMatches = confirmTargetName === database
@@ -738,6 +778,8 @@ export function useDatabaseExportWizard(options: WizardOptions): DatabaseExportW
     jobId,
     createPlan: createPlanMutation,
     submitPlan: createPlan,
+    quickStructureAvailable: quickStructureSpec != null,
+    startQuickStructureExport,
 
     // selección
     selectionScope,
@@ -836,6 +878,9 @@ export interface DatabaseExportWizard {
   jobId: number | null
   createPlan: ReturnType<typeof useCreateDatabaseExport>
   submitPlan: () => void
+  /** `true` si el motor permite el atajo «Exportación rápida» (estructura SQL, sin datos). */
+  quickStructureAvailable: boolean
+  startQuickStructureExport: () => void
 
   // ── selección ──
   selectionScope: SelectionScope

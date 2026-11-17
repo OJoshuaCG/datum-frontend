@@ -62,6 +62,16 @@ GET  /database-exports/{id}/download   → el archivo (UN SOLO USO)
 (`/database-exports/{id}/objects`), así que sin plan no hay paso 2. Da igual que el usuario cambie el
 formato después: el `preview` reemplaza el spec del plan.
 
+**Exportación rápida (atajo del paso 1).** Para el caso más común —toda la estructura en SQL, sin
+datos— el paso 1 ofrece «Exportar estructura»: crea el plan con `buildQuickStructureSpec`
+(`format: sql`, `selection: all`, `data: none`, `scope_ddl: NONE`, `entity_ddl: CREATE`,
+`script_comments: false`) y salta directo a la confirmación, sin pasar por objetos ni opciones. La
+confirmación es la de siempre (preview autoritativo, nombre re-tecleado, token): el atajo acorta el
+camino hasta el 🔌, no la barrera. `script_comments: false` quita la fecha, así que dos volcados de
+un esquema sin cambios salen idénticos. Si el motor no ofrece `sql` o la combinación incumple la
+matriz, `buildQuickStructureSpec` devuelve `null` y el atajo no se muestra. «Atrás» desde la
+confirmación lleva a las opciones: es la salida para personalizar.
+
 ## Las seis trampas del contrato, y cómo se resuelven acá
 
 ### 1. Son dos conjuntos, no una lista con una casilla "incluir datos"

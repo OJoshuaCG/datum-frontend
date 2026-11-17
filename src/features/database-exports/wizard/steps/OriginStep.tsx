@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { Badge, EmptyState, ErrorState, RadioCardGroup, Spinner } from '@/components/ui'
+import { Badge, Button, EmptyState, ErrorState, RadioCardGroup, Spinner } from '@/components/ui'
+import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
+import { CAPABILITIES } from '@/lib/contracts'
 import { toApiError } from '@/lib/api/errors'
 import { engineLabel } from '@/lib/utils'
 import type { ExportFormatCapability } from '@/lib/contracts'
@@ -42,6 +44,8 @@ function DataRow({ label, value }: { label: string; value: string }) {
  * (la matriz de compatibilidad cuelga de él).
  */
 export function OriginStep({ wizard }: { wizard: DatabaseExportWizard }) {
+  // Crear el plan ya es `exports.execute`; el atajo lo crea igual, así que exige lo mismo.
+  const planGuard = useCapabilityGuard(CAPABILITIES.exportsExecute, 'exportar bases')
   const navigate = useNavigate()
   const { capabilities } = wizard
   const data = capabilities.data ?? null
@@ -113,6 +117,29 @@ export function OriginStep({ wizard }: { wizard: DatabaseExportWizard }) {
         <DataRow label="Motor" value={`${engineLabel(data.engine)} ${data.engine_version}`} />
         <DataRow label={data.scope.kind} value={data.scope.name} />
       </div>
+
+      {wizard.quickStructureAvailable && (
+        <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold text-foreground">Exportación rápida</p>
+            <p className="text-sm text-muted-foreground">
+              Toda la estructura en <Badge tone="neutral">SQL</Badge>, sin datos y sin la fecha en
+              los comentarios: dos volcados de un esquema sin cambios salen idénticos, ideales para
+              versionar. Pasa directo a la confirmación.
+            </p>
+            <CapabilityHint guard={planGuard} className="max-w-md" />
+          </div>
+          <Button
+            variant="outline"
+            onClick={wizard.startQuickStructureExport}
+            isLoading={wizard.createPlan.isPending}
+            disabled={wizard.createPlan.isPending || wizard.actionCooldown || !planGuard.allowed}
+            aria-describedby={planGuard.describedBy}
+          >
+            {wizard.createPlan.isPending ? 'Creando plan…' : 'Exportar estructura'}
+          </Button>
+        </div>
+      )}
 
       {/* El texto del backend se muestra tal cual: explica una limitación del motor (en PostgreSQL,
           que solo se cubre el schema `public`) y reescribirlo es arriesgarse a cambiarle el sentido. */}
