@@ -177,6 +177,18 @@ Los guards de UI son **pistas**: el servidor decide. Deshabilitá o escondé con
   del colapsable.
 - Un botón cuyo nombre incluye un contador cambia de nombre accesible cuando cambia el contador:
   los tests lo buscan con regex, no con texto exacto.
+- **Filtros y página van juntos.** Cambiar un filtro (o el tamaño de página) vuelve a la página 1
+  **en el mismo manejador** que cambia el filtro, nunca con un `useEffect` que lo corrija después
+  (es error de lint). Además, la página se **acota al calcular** (`min(page, pages)`): al aprobar,
+  borrar o filtrar, la lista puede encogerse y «Página 4 de 2» con la lista vacía es peor que caer
+  en la última. Ejemplos: `MigrationSearchPanel` (clave de filtros con el término amortiguado) y
+  `DestructiveApprovalsPanel` (`paginate` en `version-filters.ts`).
+- **Una acción masiva actúa sobre lo filtrado, no sobre lo oculto.** «Seleccionar todo / pendientes»
+  marca las filas que pasan el filtro (en todas sus páginas, porque la página es solo un corte de
+  lectura); marcar filas que el filtro esconde aplicaría la acción a cosas que nadie tiene en
+  pantalla.
+- Con un filtro activo, decí cuánto queda («Mostrando X de Y») y ofrecé «Limpiar filtros», también
+  en el vacío por filtro, que es distinto del vacío real (§7).
 
 ## 9. Copy y texto **[revisión]**
 

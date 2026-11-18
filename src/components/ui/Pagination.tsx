@@ -25,7 +25,10 @@ export interface PaginationProps {
   isFetching?: boolean
 }
 
-/** Controles de paginación server-side (page/size del backend, §3). */
+/**
+ * Controles de paginación. Lo habitual es server-side (page/size del backend, §3); también sirve
+ * para una lista cortada en el cliente, pasando `sizeOptions` propias (ver docs/ui-components.md).
+ */
 export function Pagination({
   page,
   pages,

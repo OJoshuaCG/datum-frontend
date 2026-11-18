@@ -246,6 +246,15 @@ falta; no se quita de donde ya estaba.
   simplemente no ve el dato hasta que lo declare. Antes de tratar una advertencia así como
   bloqueante, comprobalo; el precio de creerla es un despliegue de emergencia que no hacía falta.
 
+- **Un enlace a `?version=` dentro de `BlueprintMigrationsPage` no basta: hace falta también
+  `selectVersion`.** La página lee `?version=` **solo al montar** (inicializador de `useState`), y
+  un `Link` a la MISMA ruta no la vuelve a montar: la URL cambia y la ficha sigue mostrando la
+  versión anterior. Por eso los paneles que viven dentro de la página reciben un callback
+  (`onOpenInCatalog` en `MigrationSearchPanel`, `onOpenVersion` en `DestructiveApprovalsPanel`) que
+  la página conecta con `selectVersion`. El enlace se conserva igual, para poder abrirlo en otra
+  pestaña o copiarlo. Desde OTRA ruta (la ficha de una base) el enlace solo alcanza, porque la
+  página se monta de nuevo.
+
 ## Antes de abrir un PR
 
 - `pnpm typecheck && pnpm lint && pnpm test && pnpm build` en verde.

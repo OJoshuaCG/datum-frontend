@@ -176,9 +176,19 @@ client-side**; la paginación/filtros server-side se controlan fuera (ver
   resto; usá porcentajes para no desbordar en `md`. No toca las tarjetas de `< md`.
 
 ### `Pagination`
-Controles de paginación **server-side** (`page`/`size` del backend): `page`, `pages`,
-`total`, `size`, `hasNext`, `hasPrev`, `onPageChange`, `onSizeChange?`. Se renderiza bajo
-el `DataTable` cuando la lista es paginada por la API.
+Controles de paginación: `page`, `pages`, `total`, `size`, `hasNext`, `hasPrev`,
+`onPageChange`, `onSizeChange?`, `sizeOptions?`, `isFetching?` (añade «· actualizando…» mientras
+se pide otra página). Solo pinta controles; quién corta las filas depende del caso:
+
+- **Server-side** (lo habitual): `page`/`size` van al backend y los demás valores salen de su
+  `pagination`. Se pone bajo el `DataTable`. Las `sizeOptions` por defecto ya vienen recortadas
+  a `PAGINATION.maxSize` (`VITE_MAX_PAGE_SIZE`), así que nunca ofrecen un `size` que dé 422.
+- **Client-side sobre una lista que no es tabla** (el endpoint devuelve todo, como
+  `destructive-versions`): se corta en memoria con un helper puro que **acota** la página
+  (`paginate` en `features/destructive-approvals/version-filters.ts`) y se pasan **`sizeOptions`
+  propias**, porque las de por defecto están pensadas para el límite del backend. Si la lista es
+  tabla, usá `clientPageSize` de `DataTable` en vez de esto.
+- Se omite mientras todo entra en la página más chica: «Página 1 de 1» no informa nada.
 
 ### `EmptyState`
 Estado "sin datos": `title`, `description?`, `action?`, `icon?`.
