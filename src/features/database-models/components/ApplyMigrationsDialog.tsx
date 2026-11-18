@@ -1,12 +1,6 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  CapabilityHint,
-  SKIPPED_BY_SCOPE_REASON,
-  skippedBaseLabel,
-  useCapabilities,
-  useCapabilityGuard,
-} from '@/features/auth'
+import { CapabilityHint, useCapabilityGuard } from '@/features/auth'
 import { CAPABILITIES } from '@/lib/contracts'
 import { ReleaseChannelCombobox } from '@/features/release-channels'
 import {
@@ -14,7 +8,13 @@ import {
   destructiveApprovalMessage,
   requiresNewDryRun,
 } from '@/features/destructive-approvals'
-import { toApiError } from '@/lib/api/errors'
+import {
+  MIGRATION_APPLY_JOB_ALREADY_ACTIVE_CODE,
+  MIGRATION_APPLY_JOB_ENQUEUE_FAILED_CODE,
+  toApiError,
+} from '@/lib/api/errors'
+import { formatCountdown } from '@/lib/utils/countdown'
+import { useCountdown } from '@/lib/utils/use-countdown'
 import {
   Badge,
   Button,
@@ -35,16 +35,15 @@ import {
 } from '@/lib/contracts'
 import { useModelDatabases } from '../hooks/use-database-models'
 import { useAllModelMigrations, useApplyAllMigrations } from '../hooks/use-model-migrations'
+import { useLaunchApplyAllJob } from '../hooks/use-migration-apply-jobs'
+import { type ApplyAllJobOptions } from '../api/model-migrations.api'
+import { ApplyAllResultList } from './ApplyAllResultList'
+import { MigrationApplyJobPanel } from './MigrationApplyJobPanel'
 import { OnFailureSelect } from './OnFailureSelect'
 import { sortVersionsAscending } from '../version-nav'
-import { CAPTURE_UNREVIEWED_CODE, describeCaptureRejection, splitCaptureVersions } from '../capture'
+import { splitCaptureVersions } from '../capture'
 import {
   blockingEnvironments,
-  classifyItem,
-  databaseLabel,
-  describeItemRejection,
-  OUTCOME_LABEL,
-  OUTCOME_TONE,
   useEnvironmentMap,
   useSelectableEnvironments,
 } from '@/features/environments'
@@ -59,6 +58,12 @@ interface ApplyMigrationsDialogProps {
 }
 
 type TargetMode = 'all' | 'selection'
+
+/**
+ * Espera tras un 429 al lanzar. El backend limita `apply-all-jobs` a 3 por minuto y no informa
+ * cuánto falta, así que se espera la ventana entera: un reintento antes solo gasta otro 429.
+ */
+const LAUNCH_RATE_LIMIT_COOLDOWN_MS = 60_000
 
 /**
  * Hasta qué versión se aplica. Eje ORTOGONAL a los destinos (qué bases): los tres valores son
@@ -107,6 +112,10 @@ const TARGET_OPTIONS = [
  *
  * Sigue siendo UNA llamada: el backend acepta `database_ids`, así que elegir destinos no
  * multiplica las peticiones ni consume el rate limit por BD.
+ *
+ * El dry-run sigue siendo el `apply-all` síncrono (es el que emite el `confirm_token`), pero la
+ * ejecución real se lanza como job en background (`apply-all-jobs`): con muchas bases el request
+ * síncrono superaba los timeouts del proxy y el operador no veía el avance.
  */
 export function ApplyMigrationsDialog({
   modelId,
@@ -122,13 +131,24 @@ export function ApplyMigrationsDialog({
   const [onFailure, setOnFailure] = useState<OnFailureMode>('auto')
   const [environment, setEnvironment] = useState<EnvironmentOut | null>(null)
   const [result, setResult] = useState<ApplyAllResult | null>(null)
-  const [wasDryRun, setWasDryRun] = useState(false)
   const [limitMode, setLimitMode] = useState<LimitMode>('head')
   const [limitVersion, setLimitVersion] = useState<string | null>(null)
   const [limitChannelSlug, setLimitChannelSlug] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [jobId, setJobId] = useState<number | null>(null)
+  /** El job que se muestra es uno que YA estaba en curso (409), no el que se intentó lanzar. */
+  const [followingActiveJob, setFollowingActiveJob] = useState(false)
+  /**
+   * Parámetros del último lanzamiento, para «Relanzar» un job interrumpido con el MISMO alcance.
+   * Se guardan sin token ni frase: son de un solo uso y ya se consumieron.
+   */
+  const [lastLaunch, setLastLaunch] = useState<ApplyAllJobOptions | null>(null)
+  const [cooldownUntil, setCooldownUntil] = useState<string | null>(null)
+  const cooldownMs = useCountdown(cooldownUntil)
+  const cooldownReasonId = useId()
 
   const applyAll = useApplyAllMigrations(modelId)
+  const launchJob = useLaunchApplyAllJob(modelId)
   // `apply-all` es `blueprints.apply`, también en dry-run: es el mismo endpoint.
   const applyGuard = useCapabilityGuard(CAPABILITIES.blueprintsApply, 'aplicar versiones')
   // Catálogo COMPLETO, no una página: este aviso no lista versiones, las CALCULA. Con una sola
@@ -154,37 +174,64 @@ export function ApplyMigrationsDialog({
 
   const handleClose = () => {
     setResult(null)
+    setJobId(null)
+    setFollowingActiveJob(false)
     onClose()
   }
 
+  const launch = (options: ApplyAllJobOptions) => {
+    launchJob.mutate(options, {
+      onSuccess: (job) => {
+        setConfirming(false)
+        // El plan ya se consumió: lo que importa ahora es el avance del job.
+        setResult(null)
+        setFollowingActiveJob(false)
+        setLastLaunch({ ...options, confirmToken: undefined, confirmPhrase: undefined })
+        setJobId(job.id)
+      },
+      onError: (error) => {
+        setConfirming(false)
+        const apiError = toApiError(error)
+        const activeJobId = apiError.migrationApplyJobContext?.activeJobId
+        if (apiError.code === MIGRATION_APPLY_JOB_ALREADY_ACTIVE_CODE && activeJobId) {
+          setFollowingActiveJob(true)
+          setJobId(activeJobId)
+          return
+        }
+        if (apiError.isRateLimited) {
+          setCooldownUntil(new Date(Date.now() + LAUNCH_RATE_LIMIT_COOLDOWN_MS).toISOString())
+        }
+      },
+    })
+  }
+
   const run = (dryRun: boolean, confirmation?: { token: string; phrase: string }) => {
-    setWasDryRun(dryRun)
     // Planificar de nuevo descarta el resultado anterior: su token (y su plan) ya no valen.
     if (dryRun) setResult(null)
+    const options: ApplyAllJobOptions = {
+      // Las guardas van ACÁ y no en el JSX: ocultar un control no impide que su valor viaje.
+      // `maxDatabases` ya se mandaba incondicionalmente incluso en modo `selection`, y copiar
+      // ese patrón habría mandado `environmentId` junto a `databaseIds`.
+      maxDatabases: mode === 'all' ? maxDatabases : undefined,
+      environmentId: mode === 'all' ? (environment?.id ?? undefined) : undefined,
+      databaseIds: mode === 'selection' ? targets.map((t) => t.id) : undefined,
+      force,
+      onFailure,
+      // Solo viaja el tope elegido: ocultar un control no impide que su valor viaje.
+      targetVersion: limitMode === 'version' ? (limitVersion ?? undefined) : undefined,
+      channel: limitMode === 'channel' ? (limitChannelSlug ?? undefined) : undefined,
+      // Solo en la ejecución confirmada: el token es del dry-run que la precede.
+      confirmToken: confirmation?.token,
+      confirmPhrase: confirmation?.phrase,
+    }
+    if (!dryRun) {
+      launch(options)
+      return
+    }
     applyAll.mutate(
+      { ...options, dryRun: true },
       {
-        // Las guardas van ACÁ y no en el JSX: ocultar un control no impide que su valor viaje.
-        // `maxDatabases` ya se mandaba incondicionalmente incluso en modo `selection`, y copiar
-        // ese patrón habría mandado `environmentId` junto a `databaseIds`.
-        maxDatabases: mode === 'all' ? maxDatabases : undefined,
-        environmentId: mode === 'all' ? (environment?.id ?? undefined) : undefined,
-        databaseIds: mode === 'selection' ? targets.map((t) => t.id) : undefined,
-        force,
-        dryRun,
-        onFailure,
-        // Solo viaja el tope elegido: ocultar un control no impide que su valor viaje.
-        targetVersion: limitMode === 'version' ? (limitVersion ?? undefined) : undefined,
-        channel: limitMode === 'channel' ? (limitChannelSlug ?? undefined) : undefined,
-        // Solo en la ejecución confirmada: el token es del dry-run que la precede.
-        confirmToken: confirmation?.token,
-        confirmPhrase: confirmation?.phrase,
-      },
-      {
-        onSuccess: (data) => {
-          setConfirming(false)
-          setResult(data)
-        },
-        onError: () => setConfirming(false),
+        onSuccess: (data) => setResult(data),
       },
     )
   }
@@ -194,9 +241,21 @@ export function ApplyMigrationsDialog({
    * dos entornos…). Se pinta acá y no solo en el toast: con el toast solo, quien tarda en leer
    * queda sin saber que tiene que volver a planificar.
    */
-  const rejection = applyAll.isError ? toApiError(applyAll.error) : null
+  const launchError = launchJob.isError ? toApiError(launchJob.error) : null
+  const dryRunError = applyAll.isError ? toApiError(applyAll.error) : null
+  const rejection = launchError ?? dryRunError
   const rejectionText = rejection
     ? destructiveApprovalMessage(rejection.code, rejection.selfApprovalRule)
+    : null
+
+  const enqueueFailedJobId =
+    launchError?.code === MIGRATION_APPLY_JOB_ENQUEUE_FAILED_CODE
+      ? launchError.migrationApplyJobContext?.jobId
+      : undefined
+  const isBusy = applyAll.isPending || launchJob.isPending
+  const coolingDown = cooldownMs > 0
+  const cooldownReason = coolingDown
+    ? `Límite de lanzamientos alcanzado: esperá ${formatCountdown(cooldownMs)}.`
     : null
 
   const nothingSelected =
@@ -334,7 +393,7 @@ export function ApplyMigrationsDialog({
               max={100}
               value={maxDatabases}
               onChange={(event) => setMaxDatabases(Number(event.target.value))}
-              hint="1–100 (procesamiento síncrono)."
+              hint="1–100. Se procesan en background, de a una."
             />
           )}
           {/*
@@ -433,22 +492,40 @@ export function ApplyMigrationsDialog({
           <Button
             variant="outline"
             isLoading={applyAll.isPending}
-            disabled={nothingSelected || !applyGuard.allowed}
+            disabled={nothingSelected || !applyGuard.allowed || isBusy}
             aria-describedby={applyGuard.describedBy}
             onClick={() => run(true)}
           >
             Previsualizar (dry-run)
           </Button>
           <Button
-            isLoading={applyAll.isPending}
-            disabled={nothingSelected || !applyGuard.allowed}
-            aria-describedby={applyGuard.describedBy}
+            isLoading={launchJob.isPending}
+            disabled={nothingSelected || !applyGuard.allowed || isBusy || coolingDown}
+            aria-describedby={
+              [applyGuard.describedBy, coolingDown ? cooldownReasonId : undefined]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
             onClick={() => run(false)}
           >
             {mode === 'selection' ? `Aplicar a ${targets.length} BD(s) 🔌` : 'Aplicar a todas 🔌'}
           </Button>
           <CapabilityHint guard={applyGuard} className="basis-full" />
+          {cooldownReason && (
+            <p id={cooldownReasonId} className="basis-full text-xs text-muted-foreground">
+              {cooldownReason}
+            </p>
+          )}
         </div>
+
+        {enqueueFailedJobId !== undefined && (
+          <Callout tone="danger" title="No se pudo encolar la aplicación masiva">
+            <p>
+              El servidor registró la ejecución #{enqueueFailedJobId} como fallida y no tocó ninguna
+              base. No bloquea nuevos lanzamientos: podés volver a intentarlo.
+            </p>
+          </Callout>
+        )}
 
         {rejectionText && (
           <Callout
@@ -463,15 +540,52 @@ export function ApplyMigrationsDialog({
           </Callout>
         )}
 
-        {result && wasDryRun && result.destructive_confirmation && (
+        {result?.destructive_confirmation && (
           <DestructiveBatchPlan
             confirmation={result.destructive_confirmation}
-            isBusy={applyAll.isPending}
+            isBusy={isBusy}
             onConfirm={() => setConfirming(true)}
           />
         )}
 
-        {result && <ApplyResult result={result} wasDryRun={wasDryRun} />}
+        {result && (
+          <ApplyAllResultList
+            title="Plan (sin aplicar)"
+            processed={result.processed}
+            outOf={result.matched_databases || result.total_databases}
+            targetVersion={result.target_version}
+            channelSlug={result.resolved_channel?.slug}
+            results={result.results}
+            wasDryRun
+          />
+        )}
+
+        {jobId !== null && (
+          <div className="flex flex-col gap-2">
+            {followingActiveJob && (
+              <Callout tone="info" title="Ya había una aplicación masiva en curso">
+                <p>
+                  El blueprint admite una sola a la vez, así que no se lanzó otra: abajo se sigue la
+                  que estaba corriendo.
+                </p>
+              </Callout>
+            )}
+            <MigrationApplyJobPanel
+              modelId={modelId}
+              jobId={jobId}
+              onRelaunch={lastLaunch && !followingActiveJob ? () => launch(lastLaunch) : undefined}
+              isRelaunching={launchJob.isPending}
+              relaunchDisabledReason={cooldownReason}
+            />
+            <Link
+              to={`?tab=ejecuciones&job=${jobId}`}
+              onClick={handleClose}
+              className="self-start text-xs font-medium text-primary hover:underline"
+            >
+              Ver en el historial de ejecuciones
+            </Link>
+          </div>
+        )}
       </div>
 
       {confirming && result?.destructive_confirmation?.environment_slug && (
@@ -480,7 +594,7 @@ export function ApplyMigrationsDialog({
           description={`Se va a ejecutar SQL destructivo en las bases de «${result.destructive_confirmation.environment_slug}». No se puede deshacer.`}
           confirmWord={result.destructive_confirmation.environment_slug}
           confirmLabel="Aplicar el lote"
-          isLoading={applyAll.isPending}
+          isLoading={launchJob.isPending}
           onConfirm={() => {
             const confirmation = result.destructive_confirmation
             if (!confirmation?.confirm_token || !confirmation.environment_slug) return
@@ -575,182 +689,6 @@ function DestructiveBatchPlan({ confirmation, isBusy, onConfirm }: DestructiveBa
           La confirmación vale 5 minutos desde que planificaste.
         </span>
       </div>
-    </div>
-  )
-}
-
-/**
- * Orden de lectura: primero lo que necesita acción.
- *
- * La lista es `max-h-64 overflow-auto`, así que todo lo que pase de la cuarta fila queda bajo el
- * pliegue: con 2 errores entre 28 filas OK, los dos que importan quedaban enterrados. Errores,
- * después bloqueadas, después OK.
- */
-const OUTCOME_ORDER = { failed: 0, blocked: 1, forbidden: 2, ok: 3 } as const
-
-function ApplyResult({ result, wasDryRun }: { result: ApplyAllResult; wasDryRun: boolean }) {
-  const canSeeCaptures = useCapabilities().can(CAPABILITIES.blueprintsCaptures)
-  const items = [...result.results].sort(
-    (a, b) => OUTCOME_ORDER[classifyItem(a)] - OUTCOME_ORDER[classifyItem(b)],
-  )
-  const counts = { ok: 0, blocked: 0, failed: 0, forbidden: 0 }
-  for (const item of result.results) counts[classifyItem(item)] += 1
-
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm text-muted-foreground">
-        {wasDryRun ? 'Plan (sin aplicar)' : 'Resultado'} · {result.processed} de{' '}
-        {/*
-          `matched_databases` refleja los filtros del lote; `total_databases` son TODAS las del
-          blueprint. Con el filtro de entorno activo, "3 de 40" se leería como "sobraron 37"
-          cuando en ese entorno solo había 3.
-        */}
-        {result.matched_databases || result.total_databases} BD(s) procesada(s)
-      </p>
-      {/*
-        El tope REAL del lote. Con un canal es lo único que fija qué significaba «stable» al correr:
-        el canal es un puntero que se mueve, y sin esto nadie sabría después hasta dónde se aplicó.
-      */}
-      {result.target_version && (
-        <p className="text-xs text-muted-foreground">
-          Tope del lote: <code>{result.target_version}</code>
-          {result.resolved_channel
-            ? ` (el canal ${result.resolved_channel.slug} servía esa versión)`
-            : ''}
-          . Las bases que ya estaban por encima no se tocaron.
-        </p>
-      )}
-      {/*
-        Tres cubos, no dos. Con 6 bloqueadas y 2 falladas, ocho filas rojas idénticas obligan a
-        leer ocho frases para saber cuáles necesitan acción.
-      */}
-      <p className="flex flex-wrap items-center gap-2 text-xs">
-        <Badge tone="success">{counts.ok} aplicada(s)</Badge>
-        {counts.blocked > 0 && (
-          <Badge tone="warning">{counts.blocked} bloqueada(s) por política</Badge>
-        )}
-        {counts.failed > 0 && <Badge tone="error">{counts.failed} con error</Badge>}
-        {counts.forbidden > 0 && (
-          <Badge tone="neutral">{counts.forbidden} sin permiso (omitida(s))</Badge>
-        )}
-      </p>
-      <ul className="flex max-h-64 flex-col divide-y divide-border overflow-auto rounded-lg border border-border">
-        {items.map((item) => {
-          const outcome = classifyItem(item)
-          // La versión a la que enlazar es la que REALMENTE capturó, que el backend informa
-          // en `captured_versions`. Antes se adivinaba con la última aplicada: un apply
-          // 0005→0010 cuya captura ocurrió en 0007 enlazaba a `…/0010/select-results`, vacío.
-          // El fallback a la última aplicada cubre un backend previo al campo.
-          const capturedAt = item.captured_versions?.[0] ?? item.applied?.at(-1)?.version
-          return (
-            <li key={item.managed_database_id} className="flex flex-col gap-1 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-foreground">
-                  {/*
-                    Por acá y no `item.database_name` directo: el backend lo tipa `str | None` y
-                    React renderiza `null` como vacío sin que TypeScript avise (`ReactNode` lo
-                    acepta). Una fila bloqueada o fallada SIN nombre es inaccionable.
-                  */}
-                  {outcome === 'forbidden'
-                    ? skippedBaseLabel(item.managed_database_id)
-                    : databaseLabel(item)}
-                </span>
-                <span className="flex items-center gap-1">
-                  {item.environment_slug && (
-                    <Badge tone="neutral" className="shrink-0">
-                      {item.environment_slug}
-                    </Badge>
-                  )}
-                  {/*
-                    "Bloqueada" va en ÁMBAR, no en rojo: acá el rojo significa "esto está roto",
-                    y un rechazo por política es el sistema FUNCIONANDO. El color es lo que
-                    distingue "no pasó nada, por diseño" de "algo se rompió".
-                  */}
-                  <Badge tone={OUTCOME_TONE[outcome]}>
-                    {outcome === 'blocked' ? '🔒 ' : ''}
-                    {OUTCOME_LABEL[outcome]}
-                  </Badge>
-                </span>
-              </div>
-              {item.applied && item.applied.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  Aplicadas:{' '}
-                  {item.applied
-                    .map((a) => {
-                      const resumed = a.resumed
-                        ? ` (retomada desde sentencia ${a.resumed_from_statement ?? '?'})`
-                        : ''
-                      const failedAt =
-                        a.failed_at_statement_index != null
-                          ? ` (falló en sentencia ${a.failed_at_statement_index}${
-                              a.statement_total != null ? ` de ${a.statement_total}` : ''
-                            })`
-                          : ''
-                      return `${a.version}${resumed}${failedAt}`
-                    })
-                    .join(', ')}
-                </span>
-              )}
-              {item.pending_versions && item.pending_versions.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  Pendientes: {item.pending_versions.join(', ')}
-                </span>
-              )}
-              {/* Puente que faltaba: desde el blueprint no había forma de llegar a lo
-                  capturado; solo se llegaba entrando a la ficha de cada BD. */}
-              {/*
-                El ENLACE se condiciona a `blueprints.captures`: ver las filas es divulgación
-                (son datos reales de la base gestionada). El conteo de arriba se deja: ya viene
-                en el resumen de la corrida que el usuario tiene delante, así que ocultarlo no
-                protegería nada y solo confundiría.
-              */}
-              {item.select_results_available && capturedAt && canSeeCaptures && (
-                <Link
-                  to={`/managed-databases/${item.managed_database_id}/migrations/${capturedAt}/select-results`}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Ver {item.captured_select_count} resultado(s) capturado(s) →
-                </Link>
-              )}
-              {/*
-                Rechazo por política: texto propio, en ámbar, y con "no se intentó" como carga
-                útil — esa es la distinción que antes no existía en ninguna forma. NO se ofrece
-                reintento: `force` no es un override de esto; las salidas reales son reclasificar
-                la base o separar las sentencias destructivas de la versión.
-              */}
-              {outcome === 'blocked' && (
-                <span className="text-xs text-warning">{describeItemRejection(item)}</span>
-              )}
-              {/* Omitida por la capa 2: el backend no manda nombre ni entorno, solo el id. */}
-              {outcome === 'forbidden' && (
-                <span className="text-xs text-muted-foreground">{SKIPPED_BY_SCOPE_REASON}</span>
-              )}
-              {/*
-                Rechazo por CAPTURA sin revisar. Llega como ítem de una respuesta 200 —el guard
-                corre por BD dentro del bucle del backend—, así que nunca fue un error de la
-                mutación y el `onError` del diálogo no lo veía: caía como el `item.error` crudo,
-                sin decir que no se ejecutó nada ni cómo salir. Se clasifica por `error_code`,
-                que es el único canal estable acá (el `public_context` de la respuesta HTTP no
-                existe para un rechazo por ítem).
-              */}
-              {item.error_code === CAPTURE_UNREVIEWED_CODE ? (
-                <span className="text-xs text-warning">
-                  {describeCaptureRejection(item.unreviewed_capture ?? [])}
-                </span>
-              ) : (
-                outcome === 'failed' &&
-                item.error && <span className="text-xs text-error">{item.error}</span>
-              )}
-              {/* Dry-run: informativo, el plan no falla. */}
-              {wasDryRun && item.blocked_by && item.blocked_by.length > 0 && (
-                <span className="text-xs text-warning">
-                  El apply real rechazaría: {item.blocked_by.join(', ')}
-                </span>
-              )}
-            </li>
-          )
-        })}
-      </ul>
     </div>
   )
 }

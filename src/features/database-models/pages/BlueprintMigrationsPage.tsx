@@ -34,6 +34,7 @@ import {
 } from '../hooks/use-model-migrations'
 import { ModelMigrationDetailPanel } from '../components/ModelMigrationDetailPanel'
 import { ApplyMigrationsDialog } from '../components/ApplyMigrationsDialog'
+import { MigrationApplyJobsPanel } from '../components/MigrationApplyJobsPanel'
 import { MigrationDeletePlanDialog } from '../components/MigrationDeletePlanDialog'
 import { ModelDatabasesStatusTable } from '../components/ModelDatabasesStatusTable'
 import { VersionTablesReportPanel } from '../components/VersionTablesReportPanel'
@@ -72,7 +73,14 @@ import { versionAlerts } from '../version-alerts'
  * dos sí, porque `?tab=estado` ya se genera como deep-link desde `MigrationDeletePlanDialog`.
  * `buscar` y `canales` siguen la misma regla: se escriben, para poder enlazar a la pestaña.
  */
-type BlueprintTab = 'versiones' | 'estado' | 'contabilidad' | 'buscar' | 'canales' | 'aprobaciones'
+type BlueprintTab =
+  | 'versiones'
+  | 'estado'
+  | 'contabilidad'
+  | 'buscar'
+  | 'canales'
+  | 'aprobaciones'
+  | 'ejecuciones'
 
 export function BlueprintMigrationsPage() {
   const params = useParams()
@@ -96,11 +104,23 @@ export function BlueprintMigrationsPage() {
             ? 'canales'
             : tabParam === 'aprobaciones'
               ? 'aprobaciones'
-              : 'versiones'
+              : tabParam === 'ejecuciones'
+                ? 'ejecuciones'
+                : 'versiones'
   const setTab = (next: BlueprintTab) =>
     setSearchParams((params) => {
       if (next === 'versiones') params.delete('tab')
       else params.set('tab', next)
+      // `job` solo tiene sentido dentro de «Ejecuciones».
+      if (next !== 'ejecuciones') params.delete('job')
+      return params
+    })
+  const jobParam = Number(searchParams.get('job'))
+  const selectedJobId = Number.isInteger(jobParam) && jobParam > 0 ? jobParam : null
+  const selectJob = (jobId: number | null) =>
+    setSearchParams((params) => {
+      if (jobId === null) params.delete('job')
+      else params.set('job', String(jobId))
       return params
     })
 
@@ -461,6 +481,9 @@ export function BlueprintMigrationsPage() {
         <TabButton active={tab === 'aprobaciones'} onClick={() => setTab('aprobaciones')}>
           Aprobaciones
         </TabButton>
+        <TabButton active={tab === 'ejecuciones'} onClick={() => setTab('ejecuciones')}>
+          Ejecuciones
+        </TabButton>
         <TabButton active={tab === 'buscar'} onClick={() => setTab('buscar')}>
           Buscar en el SQL
         </TabButton>
@@ -511,6 +534,14 @@ export function BlueprintMigrationsPage() {
           modelId={modelId}
           modelName={model.data.name}
           onOpenVersion={selectVersion}
+        />
+      ) : tab === 'ejecuciones' ? (
+        /* Pestaña propia: las aplicaciones masivas corren en background y pueden durar más que el
+           diálogo que las lanzó. Acá se las encuentra después, por id en la URL (`?job=`). */
+        <MigrationApplyJobsPanel
+          modelId={modelId}
+          selectedJobId={selectedJobId}
+          onSelectJob={selectJob}
         />
       ) : tab === 'buscar' ? (
         /* El enlace del visor navega a `?version=` en esta MISMA ruta, y la página solo lee ese
