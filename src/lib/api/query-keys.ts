@@ -87,6 +87,17 @@ export const queryKeys = {
      */
     migrationSearch: (modelId: number, params: QueryParams) =>
       ['database-models', modelId, 'migrations', 'search', params] as const,
+    /**
+     * Jobs de `apply-all-jobs`. Raíz propia y NO bajo `migrations(modelId)`: cada mutación de
+     * versiones invalida esa raíz, y no tiene sentido que eso vuelva a pedir el historial de jobs.
+     */
+    applyJobs: (modelId: number) => ['database-models', modelId, 'apply-jobs'] as const,
+    /** Prefijo de los listados: se invalida SIN tocar el detalle que se está consultando. */
+    applyJobLists: (modelId: number) => ['database-models', modelId, 'apply-jobs', 'list'] as const,
+    applyJobList: (modelId: number, limit: number) =>
+      ['database-models', modelId, 'apply-jobs', 'list', limit] as const,
+    applyJobDetail: (modelId: number, jobId: number) =>
+      ['database-models', modelId, 'apply-jobs', 'detail', jobId] as const,
   },
 
   /**

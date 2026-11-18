@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { queryKeys } from '@/lib/api/query-keys'
 import { invalidateDatabaseViews } from '@/features/managed-databases/invalidate'
 import { handleUncertainRun } from '@/features/managed-databases/uncertain-run'
@@ -205,6 +211,35 @@ export function useDeleteModelMigration(modelId: number) {
   })
 }
 
+/**
+ * Lo que mueve una aplicación masiva real, sea el `apply-all` síncrono o un job de
+ * `apply-all-jobs` que llegó a un estado terminal. Compartido para que las dos vías refresquen
+ * exactamente las mismas vistas.
+ */
+export function invalidateAfterBatchApply(queryClient: QueryClient, modelId: number): void {
+  // Invalidación de las TRES vistas, no solo el inventario: la tabla de estado del
+  // blueprint (`database-models/{id}/databases`) es justamente la que muestra la versión
+  // aplicada, y hasta ahora quedaba rancia después de un apply masivo. Bug preexistente
+  // que esta feature vuelve visible al agregarle la columna de entorno.
+  invalidateDatabaseViews(queryClient, null)
+
+  // La referencia de los canales (mínimo de las bases del entorno) sale de la caché del
+  // inventario, que este apply acaba de mover. Solo el listado: la lectura en vivo abre una
+  // conexión por base y no se refresca sola.
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.blueprintChannels.list(modelId),
+  })
+
+  // Y el catálogo de versiones, que este hook no invalidaba: el apply cambia `deletable`,
+  // `block_reason` y `sql_frozen` de las versiones que acaba de aplicar. Sin esto, la ficha
+  // ofrecía «Eliminar» HABILITADO sobre una versión recién aplicada — el backend la rechaza
+  // con 409, pero un botón destructivo cuya habilitación se decide con datos viejos es
+  // precisamente lo que no puede pasar en el card que se lee como «la verdad de esta versión».
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.databaseModels.migrations(modelId),
+  })
+}
+
 export function useApplyAllMigrations(modelId: number) {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -212,27 +247,7 @@ export function useApplyAllMigrations(modelId: number) {
     mutationFn: (options: ApplyAllOptions) => applyAllMigrations(modelId, options),
     onSuccess: (result, options) => {
       if (!options.dryRun) {
-        // Invalidación de las TRES vistas, no solo el inventario: la tabla de estado del
-        // blueprint (`database-models/{id}/databases`) es justamente la que muestra la versión
-        // aplicada, y hasta ahora quedaba rancia después de un apply masivo. Bug preexistente
-        // que esta feature vuelve visible al agregarle la columna de entorno.
-        invalidateDatabaseViews(queryClient, null)
-
-        // La referencia de los canales (mínimo de las bases del entorno) sale de la caché del
-        // inventario, que este apply acaba de mover. Solo el listado: la lectura en vivo abre una
-        // conexión por base y no se refresca sola.
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.blueprintChannels.list(modelId),
-        })
-
-        // Y el catálogo de versiones, que este hook no invalidaba: el apply cambia `deletable`,
-        // `block_reason` y `sql_frozen` de las versiones que acaba de aplicar. Sin esto, la ficha
-        // ofrecía «Eliminar» HABILITADO sobre una versión recién aplicada — el backend la rechaza
-        // con 409, pero un botón destructivo cuya habilitación se decide con datos viejos es
-        // precisamente lo que no puede pasar en el card que se lee como «la verdad de esta versión».
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.databaseModels.migrations(modelId),
-        })
+        invalidateAfterBatchApply(queryClient, modelId)
 
         // Tres cubos, no dos. Una BD "bloqueada por política" NO es un fallo: es el sistema
         // funcionando, y mezclarla con los errores reales obliga a leer cada fila para saber

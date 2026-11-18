@@ -474,6 +474,8 @@ export class ApiError extends Error {
    * Ver `extractDatabaseModelContext`.
    */
   readonly databaseModelContext?: DatabaseModelErrorContext
+  /** Contexto de los jobs de `apply-all-jobs`; ver `extractMigrationApplyJobContext`. */
+  readonly migrationApplyJobContext?: MigrationApplyJobErrorContext
   /**
    * Contexto del módulo de conversión de collation (v17 §5). Los códigos `collation.*` traen
    * datos que la UI necesita para ser accionable en vez de solo informativa: sin
@@ -535,6 +537,7 @@ export class ApiError extends Error {
     environmentContext?: EnvironmentErrorContext
     selfApprovalRule?: string
     databaseModelContext?: DatabaseModelErrorContext
+    migrationApplyJobContext?: MigrationApplyJobErrorContext
     collationContext?: CollationErrorContext
     guardContext?: GuardErrorContext
     attemptsRemaining?: number
@@ -578,6 +581,7 @@ export class ApiError extends Error {
     this.environmentContext = args.environmentContext
     this.selfApprovalRule = args.selfApprovalRule
     this.databaseModelContext = args.databaseModelContext
+    this.migrationApplyJobContext = args.migrationApplyJobContext
     this.collationContext = args.collationContext
     this.guardContext = args.guardContext
     this.attemptsRemaining = args.attemptsRemaining
@@ -1646,6 +1650,36 @@ function extractDatabaseModelContext(
   return Object.values(context).some((value) => value !== undefined) ? context : undefined
 }
 
+/** Código del 409 cuando el blueprint ya tiene un job `pending` o `running`. */
+export const MIGRATION_APPLY_JOB_ALREADY_ACTIVE_CODE = 'migration_apply_job.already_active'
+/** Código del 503 cuando el job se creó pero no se pudo encolar: quedó `failed` y no bloquea. */
+export const MIGRATION_APPLY_JOB_ENQUEUE_FAILED_CODE = 'migration_apply_job.enqueue_failed'
+
+/**
+ * Contexto de los errores de `POST .../apply-all-jobs`.
+ *
+ * El 409 trae `active_job_id`: la salida correcta es abrir y seguir ESE job, no crear otro. El
+ * 503 trae `job_id`: el job existe, quedó `failed` y se puede volver a pedir.
+ */
+export interface MigrationApplyJobErrorContext {
+  readonly activeJobId?: number
+  readonly jobId?: number
+}
+
+function extractMigrationApplyJobContext(
+  code: string | undefined,
+  publicContext: unknown,
+): MigrationApplyJobErrorContext | undefined {
+  if (!code?.startsWith('migration_apply_job.') || !isRecord(publicContext)) return undefined
+
+  const context: MigrationApplyJobErrorContext = {
+    activeJobId: finiteNumber(publicContext.active_job_id),
+    jobId: finiteNumber(publicContext.job_id),
+  }
+
+  return Object.values(context).some((value) => value !== undefined) ? context : undefined
+}
+
 function extractDatabaseExportContext(
   code: string | undefined,
   publicContext: unknown,
@@ -1741,6 +1775,7 @@ export function normalizeApiError(status: number, body: unknown, requestId?: str
         environmentContext: extractEnvironmentContext(code, d.public_context),
         selfApprovalRule: extractSelfApprovalRule(code, d.public_context),
         databaseModelContext: extractDatabaseModelContext(code, d.public_context),
+        migrationApplyJobContext: extractMigrationApplyJobContext(code, d.public_context),
         collationContext: extractCollationContext(code, d.public_context),
         guardContext: extractGuardContext(code, d.context, d.public_context),
         ...extractStepUpContext(d.public_context),

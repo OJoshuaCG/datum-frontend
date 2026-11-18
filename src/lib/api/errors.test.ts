@@ -652,4 +652,38 @@ describe('gatewayUserContext de la separación de deberes', () => {
     expect(error.gatewayUserContext?.sodReasonMinLength).toBe(20)
     expect(error.gatewayUserContext?.sodMaxHours).toBe(168)
   })
+
+  it('extrae active_job_id del 409 de apply-all-jobs ya activo', () => {
+    const error = normalizeApiError(409, {
+      detail: {
+        msg: 'Ya hay una aplicación masiva en curso para este blueprint.',
+        type: 'AppHttpException',
+        public_context: { code: 'migration_apply_job.already_active', active_job_id: 41 },
+      },
+    })
+    expect(error.code).toBe('migration_apply_job.already_active')
+    expect(error.migrationApplyJobContext).toEqual({ activeJobId: 41, jobId: undefined })
+  })
+
+  it('extrae job_id del 503 de apply-all-jobs que no se pudo encolar', () => {
+    const error = normalizeApiError(503, {
+      detail: {
+        msg: 'No se pudo encolar.',
+        type: 'AppHttpException',
+        public_context: { code: 'migration_apply_job.enqueue_failed', job_id: 7 },
+      },
+    })
+    expect(error.migrationApplyJobContext?.jobId).toBe(7)
+  })
+
+  it('no arma contexto de job para códigos ajenos aunque traigan job_id', () => {
+    const error = normalizeApiError(409, {
+      detail: {
+        msg: 'Otro conflicto.',
+        type: 'AppHttpException',
+        public_context: { code: 'migration.conflict', job_id: 7 },
+      },
+    })
+    expect(error.migrationApplyJobContext).toBeUndefined()
+  })
 })

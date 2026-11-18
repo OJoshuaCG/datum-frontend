@@ -380,6 +380,67 @@ export const applyAllResultSchema = z.object({
 export type ApplyAllResult = z.infer<typeof applyAllResultSchema>
 
 /**
+ * Estado de un job de `apply-all-jobs`. `pending` y `running` son los únicos activos: el resto
+ * es terminal y corta el polling. `interrupted` = el servidor se reinició con el job en curso;
+ * no es una cola durable, así que NO se re-encola solo y hay que relanzarlo a mano.
+ */
+export const migrationApplyJobStatusSchema = z.enum([
+  'pending',
+  'running',
+  'done',
+  'partial',
+  'failed',
+  'interrupted',
+])
+export type MigrationApplyJobStatus = z.infer<typeof migrationApplyJobStatusSchema>
+
+/** Estados en los que el job sigue vivo y hay que seguir consultándolo. */
+export const MIGRATION_APPLY_JOB_ACTIVE_STATUSES: ReadonlySet<MigrationApplyJobStatus> = new Set([
+  'pending',
+  'running',
+])
+
+/**
+ * Job de aplicación masiva en background (`POST/GET .../migrations/apply-all-jobs`).
+ *
+ * Los campos anulables van con `.nullish()` por el mismo motivo que `applyAllItemSchema`: el
+ * `_exclude_none` del backend solo limpia las claves del envelope, así que los `None` de adentro
+ * llegan como `null`.
+ */
+export const migrationApplyJobOutSchema = z.object({
+  id: z.number().int(),
+  model_id: z.number().int(),
+  status: migrationApplyJobStatusSchema,
+  environment_id: z.number().int().nullish(),
+  /** Tope ya resuelto: si se pidió por canal, la versión que el canal servía al lanzar. */
+  target_version: z.string().nullish(),
+  channel_slug: z.string().nullish(),
+  on_failure: z.string(),
+  force: z.boolean(),
+  /** TODAS las BDs del blueprint; no refleja los filtros del lote. */
+  total_databases: z.number().int(),
+  matched_databases: z.number().int(),
+  /** Bases que recorre el job. El progreso es `processed / planned`. */
+  planned: z.number().int(),
+  processed: z.number().int(),
+  /** Bases terminadas con `ok=false`. Las omitidas por scope NO cuentan acá. */
+  failed: z.number().int(),
+  /** Motivo, solo si el JOB entero falló o se interrumpió (no por base). */
+  error: z.string().nullish(),
+  created_by_username: z.string().nullish(),
+  created_at: z.string().nullish(),
+  started_at: z.string().nullish(),
+  finished_at: z.string().nullish(),
+  /**
+   * Mismo ítem que `apply-all`, uno por base terminada y en orden: crece durante el polling. Al
+   * cerrar se agregan las omitidas por scope (`error_code: 'access.forbidden'`). `null` en el
+   * listado: los resultados solo vienen en el detalle.
+   */
+  results: z.array(applyAllItemSchema).nullish(),
+})
+export type MigrationApplyJobOut = z.infer<typeof migrationApplyJobOutSchema>
+
+/**
  * Validación estática del SQL de una migración (api-reference-v11 §1).
  *
  * La forma de `statements` es deliberadamente la misma que la del preview de la consola SQL,

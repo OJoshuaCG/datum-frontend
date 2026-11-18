@@ -1,14 +1,16 @@
-import { fetchData, fetchPage, mutateData, type QueryParams } from '@/lib/api/client'
+import { fetchData, fetchList, fetchPage, mutateData, type QueryParams } from '@/lib/api/client'
 import {
   applyAllResultSchema,
   migrationDeletePlanOutSchema,
   migrationDeleteResultSchema,
+  migrationApplyJobOutSchema,
   migrationEditPreviewOutSchema,
   migrationSearchHitSchema,
   migrationValidateOutSchema,
   modelMigrationOutSchema,
   modelMigrationSummarySchema,
   type ApplyAllResult,
+  type MigrationApplyJobOut,
   type MigrationDeletePlanOut,
   type MigrationDeleteResult,
   type MigrationSearchHit,
@@ -243,6 +245,67 @@ export function applyAllMigrations(
       confirm_token: options.confirmToken,
       confirm_phrase: options.confirmPhrase,
     },
+  })
+}
+
+/** Opciones de `apply-all-jobs`: las de `apply-all` menos `dryRun`, que ese endpoint no acepta. */
+export type ApplyAllJobOptions = Omit<ApplyAllOptions, 'dryRun'>
+
+/**
+ * `POST .../migrations/apply-all-jobs` 🔌 — lanza la aplicación masiva en background (202).
+ *
+ * El alcance, los guards por motor, el canal y el preflight destructivo (todo o nada) corren
+ * DENTRO del request: si algo falla, responde con el mismo código que `apply-all` y no se crea
+ * ningún job. El `confirmToken` sigue saliendo de `apply-all?dry_run=true`; este endpoint no
+ * tiene dry-run. Un job activo por blueprint: el segundo recibe 409
+ * `migration_apply_job.already_active` con `active_job_id`. Rate limit 3/min.
+ */
+export function launchApplyAllJob(
+  modelId: number,
+  options: ApplyAllJobOptions = {},
+): Promise<MigrationApplyJobOut> {
+  return mutateData('POST', `${base(modelId)}/apply-all-jobs`, migrationApplyJobOutSchema, {
+    query: {
+      max_databases: options.maxDatabases,
+      database_ids: options.databaseIds,
+      environment_id: options.environmentId,
+      force: options.force,
+      on_failure: options.onFailure,
+      target_version: options.targetVersion,
+      channel: options.channel,
+      confirm_token: options.confirmToken,
+      confirm_phrase: options.confirmPhrase,
+    },
+  })
+}
+
+/** Tope del listado de jobs que acepta el backend (`limit` 1..100; fuera de rango, 422). */
+export const APPLY_JOB_LIST_MAX_LIMIT = 100
+
+/**
+ * `GET .../migrations/apply-all-jobs` — jobs del blueprint, del más nuevo al más viejo. Cada uno
+ * llega con `results: null`: los resultados por base solo vienen en el detalle.
+ */
+export function listApplyAllJobs(
+  modelId: number,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<MigrationApplyJobOut[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), APPLY_JOB_LIST_MAX_LIMIT)
+  return fetchList(`${base(modelId)}/apply-all-jobs`, migrationApplyJobOutSchema, {
+    query: { limit: boundedLimit },
+    signal,
+  })
+}
+
+/** `GET .../migrations/apply-all-jobs/{job_id}` — estado, progreso y resultados por base. */
+export function getApplyAllJob(
+  modelId: number,
+  jobId: number,
+  signal?: AbortSignal,
+): Promise<MigrationApplyJobOut> {
+  return fetchData(`${base(modelId)}/apply-all-jobs/${jobId}`, migrationApplyJobOutSchema, {
+    signal,
   })
 }
 
