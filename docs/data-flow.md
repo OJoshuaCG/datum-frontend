@@ -343,8 +343,14 @@ DatabaseModelsPage: "Versiones" → /database-models/{modelId}/migrations   feat
   │           BDs ya aplicaron sigue FÍSICAMENTE ahí. El token está atado al estado del parque: si una BD se
   │           movió en el medio, 422 y hay que volver a planificar. Confirmación doble reescribiendo la versión.
   │           invalida migrations, el DETALLE del blueprint (cambia current_version) Y databases
-  └─ Aplicar a todas → ApplyMigrationsDialog → useApplyAllMigrations → POST .../migrations/apply-all 🔌 (dry-run/force/max_databases)
-        invalida databases Y migrations: el apply cambia deletable/block_reason/sql_frozen de lo aplicado
+  └─ Aplicar a todas → ApplyMigrationsDialog
+        ├─ Previsualizar → useApplyAllMigrations → POST .../migrations/apply-all?dry_run=true (plan + confirm_token)
+        └─ Aplicar 🔌 → useLaunchApplyAllJob → POST .../migrations/apply-all-jobs (202, job en background)
+              409 already_active → sigue active_job_id · 429 → botón 60 s deshabilitado · 503 → job failed, reintentable
+              → MigrationApplyJobPanel → useMigrationApplyJob → GET .../apply-all-jobs/{id} cada 3 s mientras pending/running
+              al pasar a terminal invalida databases Y migrations (invalidateAfterBatchApply): el apply cambia
+              deletable/block_reason/sql_frozen de lo aplicado
+  └─ Ejecuciones (?tab=ejecuciones&job=) → MigrationApplyJobsPanel → GET .../apply-all-jobs?limit=20
 
 # Aplicar sobre UNA BD (🔌)
 ManagedDatabasesPage: "Migraciones" → /managed-databases/{databaseId}/migrations   features/managed-databases/pages/ManagedDatabaseMigrationsPage.tsx
